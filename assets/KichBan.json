@@ -1,0 +1,399 @@
+[
+  {
+    "kich_ban": 1,
+    "so_nguoi_choi": 8,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 1,
+      "tien_tri": 1,
+      "bao_ve": 1,
+      "phu_thuy": 1,
+      "tho_san": 1,
+      "soi": 2,
+      "ke_chan_doi": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "bao_ve",
+        "soi",
+        "phu_thuy",
+        "tien_tri",
+        "ke_chan_doi"
+      ],
+      "dem_thuong": [
+        "bao_ve",
+        "soi",
+        "phu_thuy",
+        "tien_tri"
+      ]
+    }
+  },
+  {
+    "kich_ban": 2,
+    "so_nguoi_choi": 5,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 3,
+      "tien_tri": 1,
+      "ba_dong": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "ba_dong",
+        "tien_tri"
+      ],
+      "dem_thuong": [
+        "ba_dong",
+        "tien_tri"
+      ]
+    }
+  },
+  {
+    "kich_ban": 3,
+    "so_nguoi_choi": 10,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 1,
+      "ba_ngoai": 1,
+      "khan_do": 1,
+      "tien_tri": 1,
+      "bao_ve": 1,
+      "phu_thuy": 1,
+      "tho_san": 1,
+      "soi": 1,
+      "soi_don_doc": 1,
+      "soi_trum": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "bao_ve",
+        "soi_trum",
+        "soi",
+        "soi_don_doc",
+        "phu_thuy",
+        "tien_tri",
+        "ba_ngoai",
+        "khan_do"
+      ],
+      "dem_thuong": [
+        "bao_ve",
+        "soi_trum",
+        "soi",
+        "soi_don_doc",
+        "phu_thuy",
+        "tien_tri",
+        "khan_do"
+      ]
+    }
+  },
+  {
+    "kich_ban": 4,
+    "so_nguoi_choi": 9,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 3,
+      "tien_tri": 1,
+      "mu_gia": 1,
+      "soi": 2
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "soi",
+        "tien_tri",
+        "mu_gia"
+      ],
+      "dem_thuong": [
+        "soi",
+        "tien_tri",
+        "mu_gia"
+      ]
+    }
+  },
+  {
+    "kich_ban": 5,
+    "so_nguoi_choi": 8,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 3,
+      "tien_tri": 1,
+      "con_lai": 1,
+      "tho_san": 1,
+      "soi": 1,
+      "ba_dong": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "ba_dong",
+        "soi",
+        "tien_tri",
+        "con_lai"
+      ],
+      "dem_thuong": [
+        "ba_dong",
+        "soi",
+        "tien_tri"
+      ]
+    }
+  },
+  {
+    "kich_ban": 6,
+    "so_nguoi_choi": 11,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 1,
+      "tien_tri": 1,
+      "tien_tri_hao_quang": 1,
+      "song_sinh": 2,
+      "than_tinh_yeu": 1,
+      "phap_su": 1,
+      "con_lai": 1,
+      "soi": 2,
+      "bi_nguyen": 1,
+      "chu_giao_phai": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "than_tinh_yeu",
+        "song_sinh",
+        "bao_ve",
+        "soi",
+        "phap_su",
+        "tien_tri",
+        "tien_tri_hao_quang",
+        "con_lai",
+        "chu_giao_phai",
+        "bi_nguyen"
+      ],
+      "dem_thuong": [
+        "bao_ve",
+        "soi",
+        "phap_su",
+        "tien_tri",
+        "tien_tri_hao_quang",
+        "chu_giao_phai"
+      ]
+    }
+  },
+  {
+    "kich_ban": 7,
+    "so_nguoi_choi": 7,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 1,
+      "tien_tri": 1,
+      "muc_su": 1,
+      "tho_san": 1,
+      "ma_ca_rong": 2,
+      "ke_chan_doi": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "ma_ca_rong",
+        "muc_su",
+        "tien_tri",
+        "ke_chan_doi"
+      ],
+      "dem_thuong": [
+        "ma_ca_rong",
+        "tien_tri"
+      ]
+    }
+  },
+  {
+    "kich_ban": 8,
+    "so_nguoi_choi": 8,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 4,
+      "bao_ve": 1,
+      "phu_thuy": 1,
+      "tho_san": 1,
+      "phap_su": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "bao_ve",
+        "phap_su",
+        "phu_thuy"
+      ],
+      "dem_thuong": [
+        "bao_ve",
+        "phap_su",
+        "phu_thuy"
+      ]
+    }
+  },
+  {
+    "kich_ban": 9,
+    "so_nguoi_choi": 14,
+    "chi_tiet_vai_tro": {
+      "chu_giao_phai": 1,
+      "ke_chan_doi": 1,
+      "nguoi_benh": 1,
+      "ba_ngoai": 1,
+      "khan_do": 1,
+      "than_tinh_yeu": 1,
+      "soi_con": 1,
+      "soi_don_doc": 1,
+      "bao_ve": 1,
+      "soi": 1,
+      "nanh_soi": 1,
+      "nhan_ban": 1,
+      "tien_tri": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "than_tinh_yeu",
+        "bao_ve",
+        "soi_con",
+        "soi",
+        "soi_don_doc",
+        "nanh_soi",
+        "phu_thuy",
+        "tien_tri",
+        "nhan_ban",
+        "chu_giao_phai",
+        "ke_chan_doi"
+      ],
+      "dem_thuong": [
+        "bao_ve",
+        "soi_con",
+        "soi",
+        "soi_don_doc",
+        "phu_thuy",
+        "tien_tri",
+        "chu_giao_phai",
+        "khan_do"
+      ]
+    }
+  },
+  {
+    "kich_ban": 10,
+    "so_nguoi_choi": 9,
+    "chi_tiet_vai_tro": {
+      "phu_thuy": 1,
+      "nha_ngoai_cam": 1,
+      "phap_su": 1,
+      "ba_dong": 1,
+      "tien_tri_hao_quang": 1,
+      "muc_su": 1,
+      "dan_lang": 1,
+      "soi_trum": 1,
+      "soi_an_chay": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "soi_trum",
+        "soi_an_chay",
+        "phap_su",
+        "phu_thuy",
+        "nha_ngoai_cam",
+        "ba_dong",
+        "tien_tri_hao_quang",
+        "muc_su"
+      ],
+      "dem_thuong": [
+        "soi_trum",
+        "soi_an_chay",
+        "phap_su",
+        "phu_thuy",
+        "nha_ngoai_cam",
+        "ba_dong",
+        "tien_tri_hao_quang"
+      ]
+    }
+  },
+  {
+    "kich_ban": 11,
+    "so_nguoi_choi": 15,
+    "chi_tiet_vai_tro": {
+      "dan_lang": 2,
+      "song_sinh": 3,
+      "soi": 1,
+      "ma_ca_rong": 2,
+      "soi_trum": 1,
+      "bao_ve": 1,
+      "phu_thuy": 1,
+      "khan_do": 1,
+      "ba_ngoai": 1,
+      "tien_tri": 1,
+      "than_tinh_yeu": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "than_tinh_yeu",
+        "song_sinh",
+        "bao_ve",
+        "soi_trum",
+        "soi",
+        "ma_ca_rong",
+        "phu_thuy",
+        "tien_tri",
+        "ba_ngoai",
+        "khan_do"
+      ],
+      "dem_thuong": [
+        "bao_ve",
+        "soi_trum",
+        "soi",
+        "ma_ca_rong",
+        "phu_thuy",
+        "tien_tri",
+        "khan_do"
+      ]
+    }
+  },
+  {
+    "kich_ban": 12,
+    "so_nguoi_choi": 11,
+    "chi_tiet_vai_tro": {
+      "bom_nhau": 1,
+      "con_bac": 1,
+      "ke_pha_roi": 1,
+      "ke_chan_doi": 1,
+      "con_lai": 1,
+      "hon_ma": 1,
+      "tham_tu": 1,
+      "dan_lang": 1,
+      "nanh_soi": 1,
+      "bao_ve": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "ke_pha_roi",
+        "bao_ve",
+        "nanh_soi",
+        "tham_tu",
+        "hon_ma",
+        "con_lai",
+        "ke_chan_doi"
+      ],
+      "dem_thuong": [
+        "bao_ve",
+        "nanh_soi",
+        "hon_ma"
+      ]
+    }
+  },
+  {
+    "kich_ban": 13,
+    "so_nguoi_choi": 66,
+    "chi_tiet_vai_tro": {
+      "tat_ca_nhan_vat": 1
+    },
+    "thu_tu_goi": {
+      "dem_1": [
+        "than_tinh_yeu",
+        "song_sinh",
+        "bao_ve",
+        "cac_loai_soi",
+        "phap_su",
+        "phu_thuy",
+        "tien_tri",
+        "tien_tri_hao_quang",
+        "cac_vai_dac_biet_khac"
+      ],
+      "dem_thuong": [
+        "bao_ve",
+        "cac_loai_soi",
+        "phap_su",
+        "phu_thuy",
+        "tien_tri",
+        "tien_tri_hao_quang",
+        "cac_vai_dac_biet_khac"
+      ]
+    }
+  }
+]
