@@ -79,7 +79,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
 
     // Assign role to player (Physical Card mode)
-    assignRole: (playerId: string, roleId: string) => {
+    // roleId can be null to unassign a role
+    assignRole: (playerId: string, roleId: string | null) => {
         const { session } = get();
         if (!session) return;
 

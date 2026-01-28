@@ -96,11 +96,9 @@ export default function PlayerSelectionScreen() {
 
     initializeGame(params.mode, params.scenarioId, selectedPlayers);
 
-    if (params.mode === GameMode.PHYSICAL_CARD) {
-      router.push('/manual-role-note');
-    } else {
-      router.push('/game-master-board');
-    }
+    // Navigate directly to game-master-board for both modes
+    // Role assignment is now integrated into game-master-board for Physical Card mode
+    router.push('/game-master-board');
   };
 
   const filteredPlayers = dbPlayers.filter(p => 

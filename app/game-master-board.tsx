@@ -37,6 +37,7 @@ export default function GameMasterBoardScreen() {
     advanceToDay,
     lynchPlayer,
     advanceToNight,
+    assignRole,
   } = useGameStore();
 
   const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
@@ -44,6 +45,13 @@ export default function GameMasterBoardScreen() {
   const [showLogPanel, setShowLogPanel] = useState(false);
   const [showRoleDesc, setShowRoleDesc] = useState(false);
 
+  // Role Assignment Modal States (Night 1 - Physical Card)
+  const [showRoleAssignModal, setShowRoleAssignModal] = useState(false);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]); // New: For multi-select
+  
+  // View Role Modal States (Night 2+ - Physical Card)
+  const [showViewRoleModal, setShowViewRoleModal] = useState(false);
+  const [viewingRole, setViewingRole] = useState<{ name: string; icon: string } | null>(null);
   
   // Day sub-phase state
   const [daySubPhase, setDaySubPhase] = useState<DaySubPhase>('SUNRISE');
@@ -53,6 +61,7 @@ export default function GameMasterBoardScreen() {
   const [lynchTarget, setLynchTarget] = useState<string | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const viewRoleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const translateX = useSharedValue(0);
 
   // Timer logic
@@ -90,10 +99,56 @@ export default function GameMasterBoardScreen() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Physical Card Mode Detection
+  const isPhysicalCardMode = session.mode === 'PHYSICAL_CARD';
+  const isNight1 = session.currentPhase.type === 'NIGHT' && session.currentPhase.number === 1;
+  const shouldShowRoleAssignment = isPhysicalCardMode && isNight1;
+  const shouldShowViewRole = isPhysicalCardMode && !isNight1 && isNightPhase;
+
+  // Helper: Get quantity of current role in scenario
+  const getRoleQuantity = (roleId: string) => {
+    const roleDef = scenario?.roles.find(r => r.roleId === roleId);
+    return roleDef ? roleDef.quantity : 0;
+  };
+
+  // Helper: Get players assigned to a specific role
+  const getAssignedPlayersForRole = (roleId: string) => {
+    return session.players.filter(p => p.roleId === roleId);
+  };
+
+  // Helper: Check if current role has enough players
+  const isRoleFullyAssigned = (roleId: string) => {
+    const quantity = getRoleQuantity(roleId);
+    const assignedCount = getAssignedPlayersForRole(roleId).length;
+    return assignedCount >= quantity;
+  };
+
+  // Check if ALL roles in the game are fully assigned (for advancing to Day)
+  const areAllRolesAssigned = () => {
+    // Check if every player has a roleId
+    // In physical card mode, every player MUST have a role assignment eventually
+    // But strictly speaking, we just need to ensure we assigned roles for all players
+    return session.players.every(p => p.roleId !== null);
+  };
+
   // --- NAVIGATION HANDLERS ---
 
   const handleNextRole = useCallback(() => {
     if (isNightPhase) {
+      // Validation for Physical Card Mode - Night 1
+      if (shouldShowRoleAssignment && currentRole) {
+        if (!isRoleFullyAssigned(currentRole.id)) {
+          const quantity = getRoleQuantity(currentRole.id);
+          const assigned = getAssignedPlayersForRole(currentRole.id).length;
+          Alert.alert(
+            'Chưa gán đủ người chơi',
+            `Vai trò ${currentRole.name} cần ${quantity} người chơi (Hiện tại: ${assigned}).`,
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+
       if (currentRole) {
         recordNightAction(currentRole.id, selectedTargetId);
       }
@@ -103,6 +158,16 @@ export default function GameMasterBoardScreen() {
         setSelectedTargetId(null);
         translateX.value = 0; // Immediate reset
       } else {
+        // Validation before advancing to Day 1
+        if (isNight1 && isPhysicalCardMode && !areAllRolesAssigned()) {
+          Alert.alert(
+            'Chưa gán đủ vai trò',
+            'Tất cả người chơi phải được gán vai trò trước khi kết thúc đêm 1.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+
         advanceToDay();
         setCurrentRoleIndex(0);
         setSelectedTargetId(null);
@@ -110,7 +175,7 @@ export default function GameMasterBoardScreen() {
         translateX.value = 0;
       }
     }
-  }, [currentRoleIndex, nightSequence.length, currentRole, selectedTargetId, isNightPhase]);
+  }, [currentRoleIndex, nightSequence.length, currentRole, selectedTargetId, isNightPhase, shouldShowRoleAssignment, isNight1, isPhysicalCardMode]);
 
   const handlePreviousRole = useCallback(() => {
     if (currentRoleIndex > 0) {
@@ -123,6 +188,113 @@ export default function GameMasterBoardScreen() {
       translateX.value = withSpring(0);
     }
   }, [currentRoleIndex]);
+
+  // --- ROLE ASSIGNMENT HANDLERS (Physical Card Mode) ---
+
+  const handleOpenRoleAssign = () => {
+    if (currentRole) {
+      // Pre-fill selected players based on current assignments
+      const assigned = getAssignedPlayersForRole(currentRole.id);
+      setSelectedPlayerIds(assigned.map(p => p.id));
+      setShowRoleAssignModal(true);
+    }
+  };
+
+  const handleTogglePlayerSelection = (playerId: string) => {
+    if (!currentRole) return;
+    
+    const quantity = getRoleQuantity(currentRole.id);
+    const newSelected = [...selectedPlayerIds];
+    const index = newSelected.indexOf(playerId);
+
+    if (index >= 0) {
+      // Remove
+      newSelected.splice(index, 1);
+    } else {
+      // Add (Check limit)
+      if (newSelected.length >= quantity) {
+        Alert.alert('Đã đủ số lượng', `Vai trò này chỉ được gán tối đa ${quantity} người.`);
+        return;
+      }
+      newSelected.push(playerId);
+    }
+    setSelectedPlayerIds(newSelected);
+  };
+
+  const handleSaveRoleAssignment = () => {
+    if (!currentRole) return;
+
+    const quantity = getRoleQuantity(currentRole.id);
+    if (selectedPlayerIds.length !== quantity) {
+      Alert.alert('Chưa đủ số lượng', `Vui lòng chọn đủ ${quantity} người chơi.`);
+      return;
+    }
+
+    // 1. Unassign players who were deselected (if they previously had this role)
+    // Actually simpler: iterate all players.
+    // If player ID is in selected -> assign currentRole
+    // If player ID NOT in selected BUT currently has currentRole -> unassign
+    // Note: assignRole updates game store immediately. 
+    
+    // We need to be careful not to overwrite other roles if we're not touching them.
+    // Strategy:
+    // A. Unassign current role from anyone who has it but is NOT in selected list.
+    const currentlyAssigned = getAssignedPlayersForRole(currentRole.id);
+    currentlyAssigned.forEach(p => {
+      if (!selectedPlayerIds.includes(p.id)) {
+        assignRole(p.id, null as any);
+      }
+    });
+
+    // B. Assign current role to everyone in selected list
+    selectedPlayerIds.forEach(pid => {
+      assignRole(pid, currentRole!.id);
+    });
+
+    setShowRoleAssignModal(false);
+  };
+
+  const handleViewRole = () => {
+    // For Night 2+, we view the role of the CARD, but logic might be different?
+    // User request: "Night 2+ ... icon xem vai trò".
+    // Wait, viewing role usually means checking a player's role.
+    // In "Physical Card", Night 2+, the CARD is active (e.g. Wolf).
+    // So we probably want to see WHO are the Wolves.
+    
+    if (currentRole) {
+      setViewingRole({ name: currentRole.name, icon: currentRole.icon }); // Just placeholder for modal title
+      // We'll reuse the view modal but maybe show list of players?
+      // Or maybe the requirement meant checking a specific player's role?
+      // "nút icon xem vai trò sẽ hiện thị modal hiện 2 giây"
+      // Let's assume it shows "Who holds this role".
+      
+      // Update logic: show assigned players in the modal
+      setShowViewRoleModal(true);
+      
+      // Auto-close after 2 seconds
+      viewRoleTimerRef.current = setTimeout(() => {
+        setShowViewRoleModal(false);
+        setViewingRole(null);
+      }, 2000);
+    }
+  };
+
+  const handleCloseViewRole = () => {
+    if (viewRoleTimerRef.current) {
+      clearTimeout(viewRoleTimerRef.current);
+    }
+    setShowViewRoleModal(false);
+    setViewingRole(null);
+  };
+
+  // Cleanup view role timer on unmount
+  useEffect(() => {
+    return () => {
+      if (viewRoleTimerRef.current) {
+        clearTimeout(viewRoleTimerRef.current);
+      }
+    };
+  }, []);
 
   // --- GESTURE & ANIMATION ---
 
@@ -240,6 +412,30 @@ export default function GameMasterBoardScreen() {
               <Text style={styles.cardCount}>
                 Role {currentRoleIndex + 1} / {nightSequence.length}
               </Text>
+              
+              {/* Role Assignment Button (Night 1 - Physical Card) */}
+              {shouldShowRoleAssignment && currentRole && (
+                <TouchableOpacity 
+                  style={styles.roleAssignBtn}
+                  onPress={handleOpenRoleAssign}
+                >
+                  <Text style={styles.roleAssignBtnText}>
+                    {isRoleFullyAssigned(currentRole.id) 
+                      ? `Đã gán: ${getAssignedPlayersForRole(currentRole.id).length}/${getRoleQuantity(currentRole.id)}` 
+                      : `+ Gán (${getAssignedPlayersForRole(currentRole.id).length}/${getRoleQuantity(currentRole.id)})`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* View Role Button (Night 2+ - Physical Card) */}
+              {shouldShowViewRole && currentRole && (
+                <TouchableOpacity 
+                  style={styles.viewRoleBtn}
+                  onPress={handleViewRole}
+                >
+                  <Text style={styles.viewRoleBtnText}>👁️</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={styles.cardContent}>
@@ -250,6 +446,24 @@ export default function GameMasterBoardScreen() {
                   <Text style={styles.infoBtnText}>ℹ️</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Show Assigned Players (Physical Card Mode) */}
+              {isPhysicalCardMode && (
+                <View style={styles.assignedPlayersContainer}>
+                  <Text style={styles.assignedPlayersLabel}>Người chơi:</Text>
+                  {getAssignedPlayersForRole(currentRole.id).length > 0 ? (
+                    <View style={styles.assignedBadges}>
+                      {getAssignedPlayersForRole(currentRole.id).map(p => (
+                        <View key={p.id} style={[styles.assignedBadge, { backgroundColor: p.color }]}>
+                          <Text style={styles.assignedBadgeText}>{p.name}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.noAssignedText}>(Chưa gán)</Text>
+                  )}
+                </View>
+              )}
             </View>
             
             {/* Target Selection in ScrollView inside Card */}
@@ -482,6 +696,120 @@ export default function GameMasterBoardScreen() {
             </ScrollView>
           </View>
         </View>
+      </Modal>
+
+      {/* ROLE ASSIGNMENT MODAL (Night 1 - Physical Card) */}
+      <Modal visible={showRoleAssignModal} animationType="slide" transparent onRequestClose={() => setShowRoleAssignModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalPanel, { height: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>
+                  Gán người chơi cho {currentRole?.name}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  Đã chọn: {selectedPlayerIds.length}/{currentRole ? getRoleQuantity(currentRole.id) : 0}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowRoleAssignModal(false)}>
+                <Text style={styles.closeBtn}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.roleListLabel}>Danh sách người chơi:</Text>
+              {session.players.map(player => {
+                // Check availability
+                // Player is disabled if they have a role AND it's NOT the current role
+                // (i.e. they are assigned to something else)
+                const isAssignedToOther = player.roleId && player.roleId !== currentRole?.id;
+                const isSelected = selectedPlayerIds.includes(player.id);
+                
+                // Get name of other role if assigned
+                const otherRoleName = isAssignedToOther 
+                  ? availableRoles.find(r => r.id === player.roleId)?.name 
+                  : '';
+
+                return (
+                  <TouchableOpacity
+                    key={player.id}
+                    style={[
+                      styles.roleOption,
+                      isAssignedToOther && styles.roleOptionDisabled,
+                      isSelected && styles.roleOptionSelected,
+                    ]}
+                    onPress={() => !isAssignedToOther && handleTogglePlayerSelection(player.id)}
+                    disabled={Boolean(isAssignedToOther)}
+                  >
+                    <View style={[styles.playerColorDot, { backgroundColor: player.color }]} />
+                    <View style={styles.roleOptionInfo}>
+                      <Text style={[
+                        styles.roleOptionName,
+                        isAssignedToOther && styles.roleOptionNameDisabled
+                      ]}>
+                        {player.name}
+                      </Text>
+                      {isAssignedToOther && (
+                        <Text style={styles.roleOptionCount}>
+                          (Đang là {otherRoleName})
+                        </Text>
+                      )}
+                    </View>
+                    {isSelected && (
+                      <Text style={styles.roleOptionCheck}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Footer with Save Button */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={[
+                  styles.saveBtn,
+                  (!currentRole || selectedPlayerIds.length !== getRoleQuantity(currentRole.id)) && styles.saveBtnDisabled
+                ]}
+                onPress={handleSaveRoleAssignment}
+                disabled={!currentRole || selectedPlayerIds.length !== getRoleQuantity(currentRole.id)}
+              >
+                <Text style={styles.saveBtnText}>Xác nhận</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* VIEW ROLE MODAL (Night 2+ - Physical Card) */}
+      {/* VIEW ROLE MODAL (Night 2+ - Physical Card) */}
+      <Modal visible={showViewRoleModal} animationType="fade" transparent onRequestClose={handleCloseViewRole}>
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1}
+          onPress={handleCloseViewRole}
+        >
+          <View style={styles.viewRoleCard}>
+            {viewingRole && (
+              <>
+                <Text style={styles.viewRoleIcon}>{viewingRole.icon}</Text>
+                <Text style={styles.viewRoleName}>{viewingRole.name}</Text>
+                
+                {/* Show assigned players */}
+                {currentRole && getAssignedPlayersForRole(currentRole.id).length > 0 && (
+                   <View style={styles.viewRolePlayersList}>
+                      {getAssignedPlayersForRole(currentRole.id).map(p => (
+                        <Text key={p.id} style={[styles.viewRolePlayerName, { color: p.color }]}>
+                          • {p.name}
+                        </Text>
+                      ))}
+                   </View>
+                )}
+
+                <Text style={styles.viewRoleHint}>Tự động đóng sau 2 giây...</Text>
+              </>
+            )}
+          </View>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
@@ -948,5 +1276,190 @@ const styles = StyleSheet.create({
     color: '#D1D5DB',
     fontSize: 15,
     lineHeight: 20,
+  },
+
+  // ROLE ASSIGNMENT BUTTON (Night 1)
+  roleAssignBtn: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  roleAssignBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+
+  // VIEW ROLE BUTTON (Night 2+)
+  viewRoleBtn: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  viewRoleBtnText: {
+    fontSize: 18,
+  },
+
+  // MODAL HEADER SUBTITLE
+  modalSubtitle: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    marginTop: 4,
+  },
+
+  // MODAL FOOTER
+  modalFooter: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+  },
+  saveBtn: {
+    backgroundColor: '#6366F1',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveBtnDisabled: {
+    backgroundColor: '#374151',
+    opacity: 0.5,
+  },
+  saveBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+
+  // ASSIGNED PLAYERS (IN CARD)
+  assignedPlayersContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  assignedPlayersLabel: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  assignedBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  assignedBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  assignedBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  noAssignedText: {
+    color: '#6B7280',
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+
+  // ROLE LIST (MODAL)
+  roleListLabel: {
+    color: '#D1D5DB',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  roleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  roleOptionDisabled: {
+    opacity: 0.6, // Keep readable
+    backgroundColor: '#111827',
+  },
+  roleOptionSelected: {
+    borderColor: '#6366F1',
+    backgroundColor: '#1E1B4B',
+  },
+  playerColorDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#374151',
+  },
+  roleOptionInfo: {
+    flex: 1,
+  },
+  roleOptionName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F9FAFB',
+    marginBottom: 2,
+  },
+  roleOptionNameDisabled: {
+    color: '#9CA3AF',
+  },
+  roleOptionCount: {
+    fontSize: 14,
+    color: '#6366F1', // Highlight the "Already assigned" text
+    fontWeight: '500', 
+  },
+  roleOptionCheck: {
+    fontSize: 24,
+    color: '#6366F1',
+    fontWeight: 'bold',
+  },
+
+  // VIEW ROLE MODAL STYLES
+  viewRoleCard: {
+    backgroundColor: '#1F2937',
+    borderRadius: 20,
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 280,
+    borderWidth: 2,
+    borderColor: '#6366F1',
+  },
+  viewRoleIcon: {
+    fontSize: 80,
+    marginBottom: 16,
+  },
+  viewRoleName: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#F9FAFB',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  viewRolePlayersList: {
+    marginTop: 10,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  viewRolePlayerName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginVertical: 4,
+  },
+  viewRoleHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
 });

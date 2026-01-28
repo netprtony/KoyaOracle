@@ -2,309 +2,828 @@
   {
     "id": "bao_ve",
     "name": "Bảo Vệ",
-    "description": "Mỗi đêm chọn 1 người để bảo vệ. Người được bảo vệ sẽ không thể bị giết trong đêm đó. Không thể bảo vệ cùng một người 2 đêm liên tiếp. (Người được bảo về không thể chết vào Ban Đêm)",
+    "description": "Mỗi đêm chọn 1 người để bảo vệ. Người được bảo vệ sẽ không thể bị giết trong đêm đó. Không thể bảo vệ cùng một người 2 đêm liên tiếp.",
     "team": "villager",
-    "iconEmoji": "🛡️"
+    "iconEmoji": "🛡️",
+    "skills": {
+      "nightAction": {
+        "type": "protect",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "canTargetSelf": true,
+        "restrictions": ["cannotTargetSamePersonConsecutively"]
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "muc_su",
     "name": "Mục Sư",
     "description": "Một đêm duy nhất trong suốt ván chơi. Mục Sư có thể chọn bất kỳ một người chơi để ban phước. Người đó sẽ được bất tử vào Ban Đêm vì đã nhận được sự ban phước.",
     "team": "villager",
-    "iconEmoji": "✝️"
+    "iconEmoji": "✝️",
+    "skills": {
+      "nightAction": {
+        "type": "bless",
+        "frequency": "oncePerGame",
+        "targetCount": 1,
+        "canTargetSelf": true,
+        "effect": "makeTargetImmortalForNight"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "than_tinh_yeu",
     "name": "Thần Tình Yêu",
     "description": "Thần Tình Yêu sẽ cùng thắng nếu phe Dân Làng hoặc phe Cặp Đôi Thắng.",
     "team": "villager",
-    "iconEmoji": "💘"
+    "iconEmoji": "💘",
+    "skills": {
+      "nightAction": {
+        "type": "createLovers",
+        "frequency": "firstNightOnly",
+        "targetCount": 2,
+        "canTargetSelf": false
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins",
+      "alternative": ["loversWin"]
+    }
   },
   {
     "id": "cap_doi",
     "name": "Cặp Đôi",
     "description": "Cặp Đôi sẽ được chọn bởi Thần Tình Yêu trong đêm đầu tiên. Họ sẽ được gọi để biết mặt nhau và nhận dấu hiệu từ Quản Trò là họ có cùng phe hay không. Cặp Đôi vẫn giữ chức năng gốc của mình. Nếu họ cùng phe, Cặp Đôi sẽ thắng nếu phe họ thắng. Nếu họ thuộc 2 phe khác nhau, họ sẽ tách thành 2 phe riêng và chỉ giành chiến thắng nếu họ là 2 người cuối cùng còn sống sót",
     "team": "neutral",
-    "iconEmoji": "💑"
+    "iconEmoji": "💑",
+    "skills": {
+      "passive": {
+        "type": "linkedFate",
+        "effect": "dieTogetherWhenOnePartnerDies"
+      }
+    },
+    "winConditions": {
+      "conditional": {
+        "sameTeam": "originalTeamWins",
+        "differentTeam": "beLastTwoSurvivors"
+      }
+    },
+    "specialRules": ["retainsOriginalRole", "cannotBeDirectlyAssigned"]
   },
   {
     "id": "soi",
     "name": "Sói",
     "description": "Mỗi đêm, đàn Sói phải thống nhất 1 con mồi để ăn thịt (không thể chọn ăn thịt 1 Sói khác). Khi thức dậy vào Ban Đêm, nếu đàn Sói không thống nhất được 1 còn mồi trong vòng 1 phút, Sói sẽ mất cơ hội ăn thịt người đêm hôm đó.",
     "team": "werewolf",
-    "iconEmoji": "🐺"
+    "iconEmoji": "🐺",
+    "skills": {
+      "nightAction": {
+        "type": "kill",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "isGroupAction": true,
+        "timeLimit": 60,
+        "restrictions": ["cannotTargetWerewolves"]
+      }
+    },
+    "winConditions": {
+      "primary": "werewolfTeamWins",
+      "criteria": "eliminateAllVillagersAndThirdParty"
+    }
   },
   {
     "id": "soi_con",
     "name": "Sói Con",
     "description": "Sói Con sẽ thức dậy cùng lúc với bầy mỗi đêm và tham gia săn mồi. Sói Con cũng là sói duy nhất có thể bị giết bởi bầy đàn nếu được sự đồng thuận của tất cả các sói (Sói con cũng phải đồng tình). Khi Sói Con chết với bất kỳ lí do nào, bầy Sói còn lại sẽ được chọn ăn thịt 2 người vào đêm sau để trả thù.",
     "team": "werewolf",
-    "iconEmoji": "🐺"
+    "iconEmoji": "🐺",
+    "skills": {
+      "nightAction": {
+        "type": "kill",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "isGroupAction": true,
+        "timeLimit": 60,
+        "restrictions": ["cannotTargetWerewolves"]
+      },
+      "passive": {
+        "type": "revenge",
+        "trigger": "onDeath",
+        "effect": "werewolvesKillTwoNextNight"
+      }
+    },
+    "winConditions": {
+      "primary": "werewolfTeamWins"
+    },
+    "specialRules": ["canBeKilledByWerewolves"]
   },
   {
     "id": "soi_don_doc",
     "name": "Sói Đơn Độc",
     "description": "Hằng đêm, Sói Đơn Độc cũng thức dậy cùng những con Sói khác và tham gia săn mồi. Sói Đơn Độc chỉ thắng nếu như là con Sói cuối cùng còn sống sót.",
     "team": "werewolf",
-    "iconEmoji": "🐺"
+    "iconEmoji": "🐺",
+    "skills": {
+      "nightAction": {
+        "type": "kill",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "isGroupAction": true,
+        "timeLimit": 60,
+        "restrictions": ["cannotTargetWerewolves"]
+      }
+    },
+    "winConditions": {
+      "primary": "beLastWerewolfAlive"
+    }
   },
   {
     "id": "soi_an_chay",
     "name": "Sói Ăn Chay",
     "description": "Thuộc phe Sói, Sói Ăn Chay sẽ thức dậy cùng các con Sói khác hằng đêm. Đúng với cái tên, Sói Ăn Chay sẽ không tham gia vào biểu quyết chọn mục tiêu của bầy Sói. Nếu là con Sói cuối cùng sống sót, họ vẫn sẽ không chọn ai để ăn thịt, phe Dân Làng vẫn phải tìm và giết hết Sói.",
     "team": "werewolf",
-    "iconEmoji": "🐺"
+    "iconEmoji": "🐺",
+    "skills": {
+      "nightAction": {
+        "type": "none",
+        "frequency": "everyNight",
+        "isGroupAction": true,
+        "cannotVote": true
+      }
+    },
+    "winConditions": {
+      "primary": "werewolfTeamWins"
+    }
   },
   {
     "id": "nanh_soi",
     "name": "Nanh Sói",
-    "description": "Đêm đầu tiên, Nanh Sói sẽ được Quản Trò gọi thưc dậy cùng với những con Sói khác. Sau đó, Nanh Sói sẽ không thức dậy cho đến khi là con sói duy nhất. Khi đó Nanh Sói sẽ tiếp tục đi săn thay đồng bọn",
+    "description": "Đêm đầu tiên, Nanh Sói sẽ được Quản Trò gọi thức dậy cùng với những con Sói khác. Sau đó, Nanh Sói sẽ không thức dậy cho đến khi là con sói duy nhất. Khi đó Nanh Sói sẽ tiếp tục đi săn thay đồng bọn",
     "team": "werewolf",
-    "iconEmoji": "🐺"
+    "iconEmoji": "🐺",
+    "skills": {
+      "nightAction": {
+        "type": "kill",
+        "frequency": "conditional",
+        "conditions": ["firstNightOnly", "whenLastWerewolf"],
+        "targetCount": 1
+      }
+    },
+    "winConditions": {
+      "primary": "werewolfTeamWins"
+    }
   },
   {
     "id": "soi_trum",
     "name": "Sói Trùm",
-    "description": "Là thủ lĩnh của bày Sói, Sói Trùm sẽ đánh giá từng con mồi và tìm ra người phù hợp để trở thành đồng minh của mình. Sức mạnh này chỉ có thể được sử dụng 1 lần trong suốt ván chơi.",
+    "description": "Là thủ lĩnh của bầy Sói, Sói Trùm sẽ đánh giá từng con mồi và tìm ra người phù hợp để trở thành đồng minh của mình. Sức mạnh này chỉ có thể được sử dụng 1 lần trong suốt ván chơi.",
     "team": "werewolf",
-    "iconEmoji": "🐺"
+    "iconEmoji": "🐺",
+    "skills": {
+      "nightAction": {
+        "type": "kill",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "isGroupAction": true,
+        "timeLimit": 60,
+        "restrictions": ["cannotTargetWerewolves"]
+      },
+      "specialAction": {
+        "type": "recruit",
+        "frequency": "oncePerGame",
+        "targetCount": 1,
+        "effect": "convertToAlly"
+      }
+    },
+    "winConditions": {
+      "primary": "werewolfTeamWins"
+    }
   },
   {
     "id": "ba_dong",
     "name": "Bà Đồng",
     "description": "Để hỗ trợ phe Sói, Bà Đồng mỗi đêm sẽ tìm Tiên Tri bằng cách chỉ vào người chơi và Quản Trò sẽ ra hiệu nếu họ chỉ đúng người. Sói không biết Bà Đồng là ai và Bà Đồng cũng không biết ai là Sói. Tiên Tri sẽ soi Bà Đồng ra là người",
     "team": "villager",
-    "iconEmoji": "🔮"
+    "iconEmoji": "🔮",
+    "skills": {
+      "nightAction": {
+        "type": "detectRole",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "detectTarget": "seer",
+        "appearsAs": "villager"
+      }
+    },
+    "winConditions": {
+      "primary": "werewolfTeamWins"
+    },
+    "specialRules": ["helpsWerewolves", "appearsAsVillagerToSeer"]
   },
   {
     "id": "ma_ca_rong",
     "name": "Ma Cà Rồng",
-    "description": "Ma cà Rồng là một phe khác ngoài phe Sói và phe Dân Làng. Mỗi đêm, họ sẽ chọn 1 nạn nhân để hút máu. Cái chết của nạn nhân đó sẽ không được tiết lộ cho đến khi phiên treo cổ vào Ban Ngày kết thúc. Tất cả các chức năng đặc biệt tập trung vào Sói cũn có thể tập trung vào Ma Cà Rồng (các chức năng có thể soi ra Ma Cà Rồng và Sói nhưng sẽ không phân biệt rõ 2 phe). Phe Ma Cà Rồng có thể được thêm vào với tổng số lượng Ma Cà Rồng bằng số lượng Sói(hoặc thay hoàn toàn Sói trong ván). Ma Cà Rồng và Sói cần phải tiêu diệt nhau và các phe còn lại mới được tính là chiến thắng",
-    "team": "neutral",
-    "iconEmoji": "🧛"
+    "description": "Ma cà Rồng là một phe khác ngoài phe Sói và phe Dân Làng. Mỗi đêm, họ sẽ chọn 1 nạn nhân để hút máu. Cái chết của nạn nhân đó sẽ không được tiết lộ cho đến khi phiên treo cổ vào Ban Ngày kết thúc.",
+    "team": "vampire",
+    "iconEmoji": "🧛",
+    "skills": {
+      "nightAction": {
+        "type": "kill",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "isGroupAction": true,
+        "effect": "delayedDeathAnnouncement"
+      }
+    },
+    "winConditions": {
+      "primary": "vampireTeamWins",
+      "criteria": "eliminateAllWerewolvesAndVillagers"
+    },
+    "specialRules": ["canReplaceWerewolves", "appearsAsWerewolfToSeers"]
   },
   {
     "id": "ke_phan_boi",
     "name": "Kẻ Phản Bội",
-    "description": "Vào đêm đầu tiên, Quản Trò sẽ hỏi xem phe Sói chọn ai trở thành Kẻ Phản Bội. Bầy Sói sẽ biểu quyết 1 người chơi bất kỳ bằng cách chỉ vào họ. Người đó sẽ được chỉ định trở thành Kẻ Phản Bội. Những đêm sau họ vẫn thuộc phe Sói nhưng không thức dậy cùng bầy đàn. Tiên Tri soi Kẻ Phản Bội ra người. Nếu Kẻ Phản Bội có chức năng đặc biệt, thì chức năng đó sẽ vẫn giữ nguyên (kể cả Tiên Tri). Nếu bạn chơi với cả 2 phe Ma Cà Rồng và Sói, mỗi phe có thẻ có 1 Kẻ Phản Bội.",
-    "team": "neutral",
-    "iconEmoji": "🎭"
+    "description": "Vào đêm đầu tiên, Quản Trò sẽ hỏi xem phe Sói chọn ai trở thành Kẻ Phản Bội. Bầy Sói sẽ biểu quyết 1 người chơi bất kỳ bằng cách chỉ vào họ. Người đó sẽ được chỉ định trở thành Kẻ Phản Bội.",
+    "team": "werewolf",
+    "iconEmoji": "🎭",
+    "skills": {
+      "passive": {
+        "type": "hiddenAllegiance",
+        "appearsAs": "villager",
+        "retainsOriginalAbility": true
+      }
+    },
+    "winConditions": {
+      "primary": "werewolfTeamWins"
+    },
+    "specialRules": ["assignedByWerewolves", "appearsAsVillagerToSeer", "cannotBeDirectlyAssigned"]
   },
   {
     "id": "bi_nguyen",
     "name": "Bị Nguyền",
-    "description": "Ban đầu, Bị Nguyền phe Dân Làng. Nếu Bị Nguyền bị Sói cắn, thì người chơi đó không chết mà thay vào đó sẽ hóa Sói vào đêm tiếp theo (Quản Trò sẽ ra hiệu). Khi đã hóa Sói, Bị Nguyền sẽ thức dậy cùng bầy Sói vào đêm tiếp theo. Nếu có phe Ma Cà Rồng, Bị Nguyền có thể trở thành Ma Cà Rồng nếu bị họ hút máu.",
+    "description": "Ban đầu, Bị Nguyền phe Dân Làng. Nếu Bị Nguyền bị Sói cắn, thì người chơi đó không chết mà thay vào đó sẽ hóa Sói vào đêm tiếp theo. Khi đã hóa Sói, Bị Nguyền sẽ thức dậy cùng bầy Sói vào đêm tiếp theo.",
     "team": "villager",
-    "iconEmoji": "😱"
+    "iconEmoji": "😱",
+    "skills": {
+      "passive": {
+        "type": "transformation",
+        "trigger": "onWerewolfAttack",
+        "effect": "becomeWerewolf",
+        "delay": "nextNight"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins",
+      "transformed": "werewolfTeamWins"
+    },
+    "specialRules": ["canTransform"]
   },
   {
     "id": "nhan_ban",
     "name": "Nhân Bản",
-    "description": "Đêm đầu tiên, Nhân Bản sẽ chọn 1 người chơi bất kỳ. Nếu người chơi được chọn bị chết, Nhân Bản mới được biết chức năng và bí mật sở hữu chức năng của người đó thông quan Quản Trò. Cho đến khi người mà Nhân Bản chọn chết, Nhân Bản theo phe Dân Làng.",
+    "description": "Đêm đầu tiên, Nhân Bản sẽ chọn 1 người chơi bất kỳ. Nếu người chơi được chọn bị chết, Nhân Bản mới được biết chức năng và bí mật sở hữu chức năng của người đó thông qua Quản Trò. Cho đến khi người mà Nhân Bản chọn chết, Nhân Bản theo phe Dân Làng.",
     "team": "neutral",
-    "iconEmoji": "👥"
+    "iconEmoji": "👥",
+    "skills": {
+      "nightAction": {
+        "type": "copyRole",
+        "frequency": "firstNightOnly",
+        "targetCount": 1,
+        "trigger": "onTargetDeath"
+      }
+    },
+    "winConditions": {
+      "conditional": {
+        "beforeCopy": "villagerTeamWins",
+        "afterCopy": "copiedRoleWinCondition"
+      }
+    }
   },
   {
     "id": "bom_nhau",
     "name": "Bợm Nhậu",
-    "description": "Bợm Nhậu vốn là 1 người dân thuộc phe Dân Làng nhưng chỉ trong 2 đêm đầu và sẽ khổng thể xác định được họ thực sự nắm giữ chức năng gì, thuộc phe gì cho đến khi đêm thứ 3. Quản Trò sẽ gọi Bợm Nhậu dậy và cho họ biết chức năng của mình. Trong xấp bài trò chuẩn bị cần có 1 Sói, 1 Dân Làng và 1 trong các chức năng đặc biệt khác, xáo trộn lên và lấy 1 lá ra. Lá bài đó sẽ là chức năng của Bợm Nhậu.",
+    "description": "Bợm Nhậu vốn là 1 người dân thuộc phe Dân Làng nhưng chỉ trong 2 đêm đầu và sẽ không thể xác định được họ thực sự nắm giữ chức năng gì, thuộc phe gì cho đến khi đêm thứ 3.",
     "team": "villager",
-    "iconEmoji": "🍺"
+    "iconEmoji": "🍺",
+    "skills": {
+      "passive": {
+        "type": "revealRole",
+        "trigger": "nightThree",
+        "effect": "randomRoleAssignment"
+      }
+    },
+    "winConditions": {
+      "conditional": "dependsOnRevealedRole"
+    },
+    "specialRules": ["roleRevealedOnNightThree"]
   },
   {
     "id": "song_sinh",
     "name": "Song Sinh",
-    "description": "Vào đêm đầu tiên, Quản Trò sẽ gọi Cặp Song Sinh dậy để biết mặt nhau. Trong xuyên suốt ván chơi, không ai trong làng được phép nói hoặc ám chỉ về 'Song Sinh'. Nếu nhắc đến mối quan hệ này, họ sẽ bị giết trong đêm đó để bịt đầu mối. Song Sinh sẽ chiến thắng nếu là 2 người sống sót cuối cùng. Nếu 1 Song Sinh chết, người còn lại cũng sẽ chết theo.",
+    "description": "Vào đêm đầu tiên, Quản Trò sẽ gọi Cặp Song Sinh dậy để biết mặt nhau. Trong xuyên suốt ván chơi, không ai trong làng được phép nói hoặc ám chỉ về 'Song Sinh'. Nếu nhắc đến mối quan hệ này, họ sẽ bị giết trong đêm đó để bịt đầu mối.",
     "team": "villager",
-    "iconEmoji": "👯"
+    "iconEmoji": "👯",
+    "skills": {
+      "passive": {
+        "type": "linkedFate",
+        "effect": "dieTogetherWhenOnePartnerDies"
+      }
+    },
+    "winConditions": {
+      "primary": "beLastTwoSurvivors"
+    },
+    "specialRules": ["cannotMentionTwinRelationship", "instantDeathIfMentioned"]
   },
   {
     "id": "chu_giao_phai",
     "name": "Chủ Giáo Phái",
-    "description": "Chủ Giáo Phái sẽ chọn 1 người chơi vào mỗi đêm để kết nạp vào giáo phái của mình. Họ sẽ chỉ thắng khi tất cả những người còn sống đều gia nhập giao phái của mình. Quản Trò cần phải lập một danh sách để theo dõi những người được Chủ Giáo Phái lựa chọn",
+    "description": "Chủ Giáo Phái sẽ chọn 1 người chơi vào mỗi đêm để kết nạp vào giáo phái của mình. Họ sẽ chỉ thắng khi tất cả những người còn sống đều gia nhập giáo phái của mình.",
     "team": "neutral",
-    "iconEmoji": "🙏"
+    "iconEmoji": "🙏",
+    "skills": {
+      "nightAction": {
+        "type": "recruit",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "effect": "addToCult"
+      }
+    },
+    "winConditions": {
+      "primary": "allAliveBelongToCult"
+    }
   },
   {
     "id": "khan_do",
     "name": "Khăn Đỏ",
     "description": "Sau khi Bà Ngoại bị Sói ăn thịt, mỗi đêm Khăn Đỏ sẽ biết chính xác 1 con Sói, Khăn Đỏ sẽ tận dụng được tối đa sức mạnh khi khôn khéo tiết lộ cho các thành viên còn lại để không bị Sói phát hiện thân phận mà vẫn có thể dẫn dắt phe Dân Làng chiến thắng.",
     "team": "villager",
-    "iconEmoji": "👧"
+    "iconEmoji": "👧",
+    "skills": {
+      "nightAction": {
+        "type": "detectRole",
+        "frequency": "everyNight",
+        "trigger": "afterGrandmotherDeath",
+        "targetCount": 1,
+        "detectTarget": "werewolf",
+        "requiresDeath": "ba_ngoai"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    },
+    "specialRules": ["poweredByGrandmotherDeath"]
   },
   {
     "id": "ba_ngoai",
     "name": "Bà Ngoại",
     "description": "Khi Bà Ngoại bị Sói ăn thịt, Khăn Đỏ sẽ mở khóa sức mạnh tối thượng. Nếu Bà Ngoại chết vì lý do khác, Khăn Đỏ sẽ không mở khóa được sức mạnh tối thượng.",
     "team": "villager",
-    "iconEmoji": "👵"
+    "iconEmoji": "👵",
+    "skills": {
+      "passive": {
+        "type": "enablePower",
+        "trigger": "onWerewolfKill",
+        "beneficiary": "khan_do"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "tho_san",
     "name": "Thợ Săn",
-    "description": "Nếu thợ Săn chết (bất kể ký do là gì), họ sẽ lập tức chỉ định nhắm bắn 1 người, Người bị bắn trúng sẽ chết ngay lập tức. Nếu Thợ Săn lựa chọn bắn lên trời thì có thể xem như là không bắn ai.",
+    "description": "Nếu Thợ Săn chết (bất kể lý do là gì), họ sẽ lập tức chỉ định nhắm bắn 1 người, Người bị bắn trúng sẽ chết ngay lập tức. Nếu Thợ Săn lựa chọn bắn lên trời thì có thể xem như là không bắn ai.",
     "team": "villager",
-    "iconEmoji": "🏹"
+    "iconEmoji": "🏹",
+    "skills": {
+      "passive": {
+        "type": "revengeKill",
+        "trigger": "onDeath",
+        "targetCount": 1,
+        "optional": true
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "nu_tho_san",
     "name": "Nữ Thợ Săn",
-    "description": "Một đem trong suốt ván chơi, Nữ Thợ Săn có thể chọn 1 người để bắn chết. Quản trò sẽ thông báo cái chết của họ vào sáng hôm sau nhưng không tiết lộ lý do chết.",
+    "description": "Một đêm trong suốt ván chơi, Nữ Thợ Săn có thể chọn 1 người để bắn chết. Quản trò sẽ thông báo cái chết của họ vào sáng hôm sau nhưng không tiết lộ lý do chết.",
     "team": "villager",
-    "iconEmoji": "🏹"
+    "iconEmoji": "🏹",
+    "skills": {
+      "nightAction": {
+        "type": "kill",
+        "frequency": "oncePerGame",
+        "targetCount": 1,
+        "effect": "hiddenCauseOfDeath"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "phu_thuy",
     "name": "Phù Thủy",
-    "description": "Phù thủy có thể sử dụng quyền năng của mình để cứu 1 người và giết 1 người trong suốt ván chơi. Mỗi đem, Quản trò sẽ gọi Phù Thủy dậy và hỏi xem liệu họ có muốn cứu người bị giết (chỉ vào họ) và giết ai hay không. Ngay cả sau khi đã hết bình thuốc, Quản trò vẫn nên tiếp tục hỏi Phù Thủy (hỏi giả vờ) để tạo sự hồi hộp cho người chơi.",
+    "description": "Phù thủy có thể sử dụng quyền năng của mình để cứu 1 người và giết 1 người trong suốt ván chơi. Mỗi đêm, Quản trò sẽ gọi Phù Thủy dậy và hỏi xem liệu họ có muốn cứu người bị giết (chỉ vào họ) và giết ai hay không.",
     "team": "villager",
-    "iconEmoji": "🧙"
+    "iconEmoji": "🧙",
+    "skills": {
+      "nightAction": {
+        "type": "dual",
+        "frequency": "everyNight",
+        "actions": [
+          {
+            "type": "heal",
+            "uses": 1,
+            "targetCount": 1
+          },
+          {
+            "type": "kill",
+            "uses": 1,
+            "targetCount": 1
+          }
+        ]
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "phap_su",
     "name": "Pháp Sư",
-    "description": "Hằng đêm, Pháp Sư có thể chon 1 người chơi để cho họ câm nín vao ngày tiếp theo. Người chơi bị dính phép sẽ không được nói chuyện, không được cất tiếng trong giai đoạn Ban Ngày, nhưng vẫn có thể tham gia biểu quyết (thể hiện bằng hành động). Pháp Sư cũng không thể tự làm câm nín chính mình. Nhưng không thể cho người bị câm nín 2 lần liên tiếp.",
+    "description": "Hằng đêm, Pháp Sư có thể chọn 1 người chơi để cho họ câm nín vào ngày tiếp theo. Người chơi bị dính phép sẽ không được nói chuyện, không được cất tiếng trong giai đoạn Ban Ngày, nhưng vẫn có thể tham gia biểu quyết.",
     "team": "villager",
-    "iconEmoji": "🎩"
+    "iconEmoji": "🎩",
+    "skills": {
+      "nightAction": {
+        "type": "silence",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "canTargetSelf": false,
+        "restrictions": ["cannotTargetSamePersonConsecutively"]
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "mu_gia",
     "name": "Mụ Già",
-    "description": "Vào mỗi đêm, Mụ Già sẽ yểm bùa 1 người chơi và người chơi đó phải khỏi làng (trạng thái bỏ khỏi làng) trong 1 ngày, tất nhiên cũng không tham gia bàn luận, biểu quyết hoặc bất cứ hoạt động nào trong ngày hôm đó (người đó cũng được an toàn khỏi Thợ Săn, Sói và những tác nhân giết người khác). Mụ Già không thể yểm bùa chính mình.",
+    "description": "Vào mỗi đêm, Mụ Già sẽ yểm bùa 1 người chơi và người chơi đó phải khỏi làng (trạng thái bỏ khỏi làng) trong 1 ngày, tất nhiên cũng không tham gia bàn luận, biểu quyết hoặc bất cứ hoạt động nào trong ngày hôm đó.",
     "team": "villager",
-    "iconEmoji": "🧓"
+    "iconEmoji": "🧓",
+    "skills": {
+      "nightAction": {
+        "type": "exile",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "canTargetSelf": false,
+        "duration": "oneDay",
+        "effect": "grantImmunity"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "con_bac",
     "name": "Con Bạc",
     "description": "Được ăn cả, ngã về không. Đây sẽ là ván cược quan trọng nhất đời Con Bạc khi họ đánh cược bằng chính mạng sống của mình để tìm ra Sói. Vì thiếu thông tin, Con Bạc sẽ không chọn ai để giết vào đêm đầu tiên. Sau đêm đầu, Con Bạc luôn phải chọn 1 người chơi mỗi đêm cho đến khi bị chết.",
     "team": "neutral",
-    "iconEmoji": "🎲"
+    "iconEmoji": "🎲",
+    "skills": {
+      "nightAction": {
+        "type": "gamble",
+        "frequency": "everyNight",
+        "excludeFirstNight": true,
+        "targetCount": 1,
+        "mandatory": true,
+        "effect": "dieIfTargetIsWerewolf"
+      }
+    },
+    "winConditions": {
+      "primary": "surviveAndFindWerewolves"
+    }
   },
   {
     "id": "dan_lang",
     "name": "Dân Làng",
-    "description": "Dân Làng không có chức năng đặc biệt nào. Vì vậy họ sẽ phải ngủ suốt đêm và không được biết các Dân Làng con lại là ai. Mục đích duy nhất của Dân Làng là bàn luận, phán đoán để tìm ra Sói trong làng của mình và treo cổ chúng",
+    "description": "Dân Làng không có chức năng đặc biệt nào. Vì vậy họ sẽ phải ngủ suốt đêm và không được biết các Dân Làng còn lại là ai. Mục đích duy nhất của Dân Làng là bàn luận, phán đoán để tìm ra Sói trong làng của mình và treo cổ chúng",
     "team": "villager",
-    "iconEmoji": "👨"
+    "iconEmoji": "👨",
+    "skills": {},
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "thanh_nien_cung",
     "name": "Thanh Niên Cứng",
     "description": "Nếu Thanh Niên Cứng bị Sói cắn, Quản Trò sẽ không thông báo cái chết của họ cho những người chơi khác vào sáng hôm sau. Họ sẽ thật sự chết vào đêm tiếp theo và Quản Trò sẽ thông báo cái chết đó cùng với những cái chết khác (nếu có) vào buổi sáng ngay sau đêm thứ 2.",
     "team": "villager",
-    "iconEmoji": "💪"
+    "iconEmoji": "💪",
+    "skills": {
+      "passive": {
+        "type": "delayedDeath",
+        "trigger": "onWerewolfAttack",
+        "delay": "oneNight"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "hoang_tu",
     "name": "Hoàng Tử",
     "description": "Nếu bị biểu quyết treo cổ. Hoàng Tử sẽ tiết lộ thân phận và thoát chết. Người chơi lập tức đi ngủ sau lần treo cổ thất bại đó. Hoàng Tử chỉ có thể thoát treo cổ một lần và vẫn có thể chết do các nguyên nhân khác.",
     "team": "villager",
-    "iconEmoji": "🤴"
+    "iconEmoji": "🤴",
+    "skills": {
+      "passive": {
+        "type": "surviveExecution",
+        "uses": 1,
+        "effect": "revealIdentity"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "thi_truong",
     "name": "Thị Trưởng",
-    "description": "Khi tham gia biểu quyết, Thị Trưởng được tính là 2 phiếu. Trong trường hợp là người có số biểu quyết lên giàn treo cổ nhiều nhất, Thị Trưởng có thể tiệt lộ thân phân và chọn cho người khác để có cơ hội thoát chết. Thị Trưởng sẽ giữ chức vụ cho tới khi chết và có quyền chọn người kế nhiệm (người đó vẫn được giữ chức năng cũ).",
+    "description": "Khi tham gia biểu quyết, Thị Trưởng được tính là 2 phiếu. Trong trường hợp là người có số biểu quyết lên giàn treo cổ nhiều nhất, Thị Trưởng có thể tiết lộ thân phân và chọn cho người khác để có cơ hội thoát chết. Thị Trưởng sẽ giữ chức vụ cho tới khi chết và có quyền chọn người kế nhiệm.",
     "team": "villager",
-    "iconEmoji": "👔"
+    "iconEmoji": "👔",
+    "skills": {
+      "passive": {
+        "type": "doubleVote",
+        "effect": "voteCountsAsTwo"
+      },
+      "onDeath": {
+        "type": "succession",
+        "effect": "chooseSuccessor"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    },
+    "specialRules": ["canRedirectExecution"]
   },
   {
     "id": "con_lai",
     "name": "Con Lai",
     "description": "Con Lai là người có một nửa dòng máu của Sói. Dù thuộc phe Dân Làng họ sẽ bị Tiên Tri soi là Sói. Tuy nhiên, Con Lai vẫn có thể thắng cùng phe Dân Làng.",
-    "team": "neutral",
-    "iconEmoji": "🎭"
+    "team": "villager",
+    "iconEmoji": "🎭",
+    "skills": {
+      "passive": {
+        "type": "falseIdentity",
+        "appearsAs": "werewolf"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "khung_bo",
     "name": "Khủng Bố",
     "description": "Vì mang bom trong người, nếu Khủng Bố bị giết vì bất kỳ lý do gì bom sẽ phát nổ và 2 người chơi ngồi cạnh họ cũng sẽ chết theo.",
     "team": "neutral",
-    "iconEmoji": "💣"
+    "iconEmoji": "💣",
+    "skills": {
+      "passive": {
+        "type": "explosionOnDeath",
+        "trigger": "onDeath",
+        "targetCount": 2,
+        "effect": "killAdjacentPlayers"
+      }
+    },
+    "winConditions": {
+      "primary": "causeMaximumChaos"
+    }
   },
   {
     "id": "nguoi_benh",
     "name": "Người Bệnh",
     "description": "Nếu phe Sói Cắn trúng Người Bệnh, Sói sẽ bị nhiễm bệnh ngay và sẽ không có lượt cắn vào đêm tiếp theo.",
     "team": "villager",
-    "iconEmoji": "🤒"
+    "iconEmoji": "🤒",
+    "skills": {
+      "passive": {
+        "type": "diseaseCarrier",
+        "trigger": "onWerewolfAttack",
+        "effect": "werewolvesSkipNextKill"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "hon_ma",
     "name": "Hồn Ma",
     "description": "Hồn Ma sẽ chết vào đêm đầu tiên. Tính luôn đêm đầu tiên đó, Hồn Ma có thể để lại 1 chữ mỗi đêm cho phe Dân Làng như một thông điệp từ địa ngục. Họ có thể quan sát mọi người xuyên suốt từ bên ngoài và tiết lộ các điểm (không được tiết lộ tên người chơi).",
     "team": "villager",
-    "iconEmoji": "👻"
+    "iconEmoji": "👻",
+    "skills": {
+      "passive": {
+        "type": "autoKill",
+        "trigger": "firstNight"
+      },
+      "afterDeath": {
+        "type": "communicate",
+        "frequency": "everyNight",
+        "method": "singleLetter",
+        "restrictions": ["cannotRevealNames"]
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "du_con",
     "name": "Du Côn",
     "description": "Đêm đầu tiên, Du Côn chọn 2 người chơi bất kỳ. Du Côn chỉ có thể thắng nếu những người được chọn chết trước khi kết thúc ván chơi và Du Côn thì sống sót.",
-    "team": "villager",
-    "iconEmoji": "🏃"
+    "team": "neutral",
+    "iconEmoji": "🏃",
+    "skills": {
+      "nightAction": {
+        "type": "markTargets",
+        "frequency": "firstNightOnly",
+        "targetCount": 2
+      }
+    },
+    "winConditions": {
+      "primary": "targetsDeadAndSelfAlive"
+    }
   },
   {
     "id": "ke_chan_doi",
     "name": "Kẻ Chán Đời",
-    "description": "Kẻ Chán Đời chán đời nên Kẻ Chán Đời sẽ thắng khi Kẻ Chán Đời thấy hết chán đời do được chết vì treo cổ. Nếu Kẻ Chán Đời bị giết bởi các lí do khác (Phù Thủy ném thuốc, sói cắn...) Kẻ Chán Đời vẫn thấy chán đời nên Kẻ Chán Đời sẽ không chiến thắng.",
+    "description": "Kẻ Chán Đời chán đời nên Kẻ Chán Đời sẽ thắng khi Kẻ Chán Đời thấy hết chán đời do được chết vì treo cổ. Nếu Kẻ Chán Đời bị giết bởi các lý do khác (Phù Thủy ném thuốc, sói cắn...) Kẻ Chán Đời vẫn thấy chán đời nên Kẻ Chán Đời sẽ không chiến thắng.",
     "team": "neutral",
-    "iconEmoji": "😔"
+    "iconEmoji": "😔",
+    "skills": {},
+    "winConditions": {
+      "primary": "dieByExecution"
+    }
   },
   {
     "id": "tien_tri",
     "name": "Tiên Tri",
     "description": "Mỗi đêm, Tiên Tri sẽ được Quản Trò gọi dậy và được chọn 1 người chơi mà họ muốn biết thân phận thật của họ thuộc phe Sói, Dân Làng hay phe thứ 3. Tiên Tri sẽ chỉ vào người mà họ nghi ngờ và được Quản Trò ra hiệu người đó thuộc phe nào.",
     "team": "villager",
-    "iconEmoji": "🔮"
+    "iconEmoji": "🔮",
+    "skills": {
+      "nightAction": {
+        "type": "investigate",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "information": "team"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "tien_tri_tap_su",
     "name": "Tiên Tri Tập Sự",
     "description": "Tiên Tri Tập Sự là nhân vật sẽ trở thành Tiên Tri nếu Tiên Tri tiền bối chẳng may \"ngủm củ tỏi.\" Họ chỉ thức dậy sau khi Tiên Tri thật đã chết và được Quản trò chạm vai khi đến lượt Tiên Tri thức dậy.",
     "team": "villager",
-    "iconEmoji": "🔮"
+    "iconEmoji": "🔮",
+    "skills": {
+      "nightAction": {
+        "type": "investigate",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "information": "team",
+        "trigger": "afterSeerDeath"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "tien_tri_hao_quang",
     "name": "Tiên Tri Hào Quang",
     "description": "Tiên Tri Hào Quang tìm kiếm người chơi có chức năng, không phải Dân làng hay Sói. Quản Trò nên xác định rõ ràng số lượng chức năng có trong trò chơi để tránh nhầm lẫn hoặc gọi thiếu chức năng.",
     "team": "villager",
-    "iconEmoji": "🔮"
+    "iconEmoji": "🔮",
+    "skills": {
+      "nightAction": {
+        "type": "investigate",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "information": "hasSpecialRole"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "tien_tri_bi_an",
     "name": "Tiên Tri Bí Ẩn",
     "description": "Là Tiên Tri mạnh nhất. Tiên Tri Bí Ẩn sẽ được biết chức năng cụ thể của người họ chọn từ Quản Trò. Lá bài này chỉ nên được sử dụng với làng đông người và nhiều Sói để đảm bảo tính cân bằng của trò chơi.",
     "team": "villager",
-    "iconEmoji": "🔮"
+    "iconEmoji": "🔮",
+    "skills": {
+      "nightAction": {
+        "type": "investigate",
+        "frequency": "everyNight",
+        "targetCount": 1,
+        "information": "exactRole"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "nha_ngoai_cam",
     "name": "Nhà Ngoại Cảm",
     "description": "Tuy sức mạnh tâm linh chưa bằng các Tiên Tri, thông tin Nhà Ngoại Cảm thu thập được về các bè phái sẽ vô cùng có ích khi được sử dụng khéo léo về cuối ván chơi.",
     "team": "villager",
-    "iconEmoji": "👁️"
+    "iconEmoji": "👁️",
+    "skills": {
+      "nightAction": {
+        "type": "investigate",
+        "frequency": "everyNight",
+        "targetCount": 2,
+        "information": "sameTeam"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "tham_tu",
     "name": "Thám Tử",
     "description": "Một đêm trong xuyên suốt ván chơi, Thám Tử sẽ chọn 1 người và sẽ được biết người chơi đó hoặc một trong 2 người ngồi cạnh họ có phải Sói hay không (Quản Trò ra hiệu).",
     "team": "villager",
-    "iconEmoji": "🕵️"
+    "iconEmoji": "🕵️",
+    "skills": {
+      "nightAction": {
+        "type": "investigate",
+        "frequency": "oncePerGame",
+        "targetCount": 1,
+        "information": "targetOrAdjacentIsWerewolf"
+      }
+    },
+    "winConditions": {
+      "primary": "villagerTeamWins"
+    }
   },
   {
     "id": "ke_pha_roi",
     "name": "Kẻ Phá Rối",
     "description": "Một lần trong suốt ván chơi, Kẻ Phá Rối sẽ ra hiệu cho Quản Trò vào giai đoạn Ban Đêm, tráo lá bài của 2 người. Ngay cả sau khi đã hết lượt tráo bài, Quản Trò vẫn nên tiếp tục gọi Kẻ Phá Rối. Bình thường họ theo phe Dân Làng nhưng nếu chọn tráo bài của chính mình, Kẻ Phá Rối sẽ theo phe của lá bài mới.",
     "team": "neutral",
-    "iconEmoji": "💫"
+    "iconEmoji": "💫",
+    "skills": {
+      "nightAction": {
+        "type": "swapRoles",
+        "frequency": "oncePerGame",
+        "targetCount": 2,
+        "canTargetSelf": true
+      }
+    },
+    "winConditions": {
+      "conditional": {
+        "default": "villagerTeamWins",
+        "ifSwappedSelf": "newRoleWinCondition"
+      }
+    }
   },
   {
     "id": "quan_tro",
     "name": "Quản Trò",
     "description": "Người điều khiển trò chơi. Không phải vai trò chơi.",
     "team": "neutral",
-    "iconEmoji": "🎮"
+    "iconEmoji": "🎮",
+    "skills": {},
+    "winConditions": {},
+    "specialRules": ["notPlayableRole"]
   }
 ]
