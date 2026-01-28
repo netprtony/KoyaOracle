@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { GameState, GameSession, GameMode, Player, MatchLogEntry, Role, Scenario } from '../types';
 import { loadRoles, loadScenarios, getScenarioById } from '../utils/assetLoader';
 import { storage } from '../utils/storage';
+import { database } from '../utils/database';
 import { assignRandomRoles } from '../engine/roleAssignment';
 import { createInitialPhase, advanceToDay as advanceToDayPhase, advanceToNight as advanceToNightPhase } from '../engine/phaseController';
 
@@ -14,12 +15,24 @@ export const useGameStore = create<GameState>((set, get) => ({
     availableRoles: [],
     availableScenarios: [],
 
-    // Load assets from JSON files
+    // Load assets from JSON files and Database
     loadAssets: async () => {
         try {
             const roles = loadRoles();
-            const scenarios = loadScenarios();
-            set({ availableRoles: roles, availableScenarios: scenarios });
+            const defaultScenarios = loadScenarios();
+
+            // Load custom scenarios from database
+            let customScenarios: Scenario[] = [];
+            try {
+                if (database.isAvailable()) {
+                    const dbScenarios = await database.getCustomScenarios();
+                    customScenarios = dbScenarios as Scenario[];
+                }
+            } catch (err) {
+                console.warn('Failed to load custom scenarios:', err);
+            }
+
+            set({ availableRoles: roles, availableScenarios: [...defaultScenarios, ...customScenarios] });
         } catch (error) {
             console.error('Error loading assets:', error);
         }
@@ -252,9 +265,54 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
     },
 
-    // Clear game
+    // Clean up game state
     clearGame: () => {
         set({ session: null });
         storage.clearGame();
+    },
+
+    // Add a custom scenario
+    addCustomScenario: async (name: string, roles: { roleId: string; quantity: number }[]) => {
+        const id = `custom_${Date.now()}`;
+        const playerCount = roles.reduce((sum, role) => sum + role.quantity, 0);
+
+        // Simple night order: just list all role IDs. 
+        // The engine RoleManager handles the actual priority execution order.
+        const nightOrder = roles.map(r => r.roleId);
+
+        const newScenario: Scenario = {
+            id,
+            name,
+            playerCount,
+            roles,
+            nightOrder
+        };
+
+        try {
+            if (database.isAvailable()) {
+                await database.saveScenario(id, name, playerCount, roles, nightOrder);
+            }
+
+            // Update state
+            const { availableScenarios } = get();
+            set({ availableScenarios: [newScenario, ...availableScenarios] });
+        } catch (error) {
+            console.error('Failed to save custom scenario:', error);
+        }
+    },
+
+    // Delete a custom scenario
+    deleteCustomScenario: async (id: string) => {
+        try {
+            if (database.isAvailable()) {
+                await database.deleteScenario(id);
+            }
+
+            // Update state
+            const { availableScenarios } = get();
+            set({ availableScenarios: availableScenarios.filter(s => s.id !== id) });
+        } catch (error) {
+            console.error('Failed to delete custom scenario:', error);
+        }
     },
 }));

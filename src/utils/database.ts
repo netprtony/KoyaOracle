@@ -66,35 +66,58 @@ class DatabaseService {
     private async createTables(): Promise<void> {
         if (!this.db) return;
 
-        await this.db.execAsync(`
-            CREATE TABLE IF NOT EXISTS matches (
-                id TEXT PRIMARY KEY,
-                scenario_id TEXT NOT NULL,
-                mode TEXT NOT NULL,
-                players_json TEXT NOT NULL,
-                log_json TEXT NOT NULL,
-                winner TEXT,
-                created_at INTEGER NOT NULL,
-                ended_at INTEGER
-            );
+        try {
+            await this.db.execAsync(`
+                CREATE TABLE IF NOT EXISTS matches (
+                    id TEXT PRIMARY KEY,
+                    scenario_id TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    players_json TEXT NOT NULL,
+                    log_json TEXT NOT NULL,
+                    winner TEXT,
+                    created_at INTEGER NOT NULL,
+                    ended_at INTEGER
+                );
+            `);
 
-            CREATE TABLE IF NOT EXISTS players (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                color TEXT NOT NULL DEFAULT '#6366f1',
-                games_played INTEGER NOT NULL DEFAULT 0,
-                games_won INTEGER NOT NULL DEFAULT 0,
-                last_played INTEGER NOT NULL
-            );
+            await this.db.execAsync(`
+                CREATE TABLE IF NOT EXISTS players (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    color TEXT NOT NULL DEFAULT '#6366f1',
+                    games_played INTEGER NOT NULL DEFAULT 0,
+                    games_won INTEGER NOT NULL DEFAULT 0,
+                    last_played INTEGER NOT NULL
+                );
+            `);
 
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
+            await this.db.execAsync(`
+                CREATE TABLE IF NOT EXISTS scenarios (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    player_count INTEGER NOT NULL,
+                    roles_json TEXT NOT NULL,
+                    night_order_json TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                );
+            `);
 
-            CREATE INDEX IF NOT EXISTS idx_matches_created_at ON matches(created_at);
-            CREATE INDEX IF NOT EXISTS idx_players_name ON players(name);
-        `);
+            await this.db.execAsync(`
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+            `);
+
+            // Indices
+            await this.db.execAsync(`CREATE INDEX IF NOT EXISTS idx_matches_created_at ON matches(created_at);`);
+            await this.db.execAsync(`CREATE INDEX IF NOT EXISTS idx_players_name ON players(name);`);
+            await this.db.execAsync(`CREATE INDEX IF NOT EXISTS idx_scenarios_created_at ON scenarios(created_at);`);
+
+        } catch (error) {
+            console.error('Error creating tables:', error);
+            throw error;
+        }
     }
 
     /**
@@ -313,6 +336,76 @@ class DatabaseService {
             gamesWon: row.games_won,
             lastPlayed: row.last_played,
         }));
+    }
+
+    // ==========================================
+    // SCENARIO OPERATIONS
+    // ==========================================
+
+    /**
+     * Save a custom scenario
+     */
+    async saveScenario(id: string, name: string, playerCount: number, roles: any[], nightOrder: string[]): Promise<void> {
+        if (!this.db) return;
+
+        try {
+            await this.db.runAsync(
+                `INSERT OR REPLACE INTO scenarios (id, name, player_count, roles_json, night_order_json, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                id,
+                name,
+                playerCount,
+                JSON.stringify(roles),
+                JSON.stringify(nightOrder),
+                Date.now()
+            );
+        } catch (error) {
+            console.warn('Failed to save scenario, attempting to recreate tables...', error);
+            // If table doesn't exist, try creating tables and retry
+            await this.createTables();
+
+            await this.db.runAsync(
+                `INSERT OR REPLACE INTO scenarios (id, name, player_count, roles_json, night_order_json, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                id,
+                name,
+                playerCount,
+                JSON.stringify(roles),
+                JSON.stringify(nightOrder),
+                Date.now()
+            );
+        }
+    }
+
+    /**
+     * Get all custom scenarios
+     */
+    async getCustomScenarios(): Promise<{ id: string; name: string; playerCount: number; roles: any[]; nightOrder: string[] }[]> {
+        if (!this.db) return [];
+
+        const result = await this.db.getAllAsync<{
+            id: string;
+            name: string;
+            player_count: number;
+            roles_json: string;
+            night_order_json: string;
+        }>(`SELECT * FROM scenarios ORDER BY created_at DESC`);
+
+        return result.map(row => ({
+            id: row.id,
+            name: row.name,
+            playerCount: row.player_count,
+            roles: JSON.parse(row.roles_json),
+            nightOrder: JSON.parse(row.night_order_json),
+        }));
+    }
+
+    /**
+     * Delete a custom scenario
+     */
+    async deleteScenario(id: string): Promise<void> {
+        if (!this.db) return;
+        await this.db.runAsync(`DELETE FROM scenarios WHERE id = ?`, id);
     }
 
     // ==========================================

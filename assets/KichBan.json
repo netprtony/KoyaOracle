@@ -17,7 +17,8 @@
         "soi",
         "phu_thuy",
         "tien_tri",
-        "ke_chan_doi"
+        "ke_chan_doi",
+        "tho_san"
       ],
       "dem_thuong": [
         "bao_ve",
@@ -70,7 +71,8 @@
         "phu_thuy",
         "tien_tri",
         "ba_ngoai",
-        "khan_do"
+        "khan_do",
+        "tho_san"
       ],
       "dem_thuong": [
         "bao_ve",
@@ -85,7 +87,7 @@
   },
   {
     "kich_ban": 4,
-    "so_nguoi_choi": 9,
+    "so_nguoi_choi": 7,
     "chi_tiet_vai_tro": {
       "dan_lang": 3,
       "tien_tri": 1,
@@ -121,7 +123,8 @@
         "ba_dong",
         "soi",
         "tien_tri",
-        "con_lai"
+        "con_lai",
+        "tho_san"
       ],
       "dem_thuong": [
         "ba_dong",
@@ -132,7 +135,7 @@
   },
   {
     "kich_ban": 6,
-    "so_nguoi_choi": 11,
+    "so_nguoi_choi": 12,
     "chi_tiet_vai_tro": {
       "dan_lang": 1,
       "tien_tri": 1,
@@ -184,7 +187,8 @@
         "ma_ca_rong",
         "muc_su",
         "tien_tri",
-        "ke_chan_doi"
+        "ke_chan_doi",
+        "tho_san"
       ],
       "dem_thuong": [
         "ma_ca_rong",
@@ -206,7 +210,8 @@
       "dem_1": [
         "bao_ve",
         "phap_su",
-        "phu_thuy"
+        "phu_thuy",
+        "tho_san"
       ],
       "dem_thuong": [
         "bao_ve",
@@ -219,6 +224,7 @@
     "kich_ban": 9,
     "so_nguoi_choi": 14,
     "chi_tiet_vai_tro": {
+      "du_con": 1,
       "chu_giao_phai": 1,
       "ke_chan_doi": 1,
       "nguoi_benh": 1,
@@ -241,11 +247,14 @@
         "soi",
         "soi_don_doc",
         "nanh_soi",
-        "phu_thuy",
         "tien_tri",
         "nhan_ban",
         "chu_giao_phai",
-        "ke_chan_doi"
+        "ke_chan_doi",
+        "du_con",
+        "ba_ngoai",
+        "khan_do",
+        "nguoi_benh"
       ],
       "dem_thuong": [
         "bao_ve",
@@ -291,47 +300,8 @@
         "phu_thuy",
         "nha_ngoai_cam",
         "ba_dong",
-        "tien_tri_hao_quang"
-      ]
-    }
-  },
-  {
-    "kich_ban": 11,
-    "so_nguoi_choi": 15,
-    "chi_tiet_vai_tro": {
-      "dan_lang": 2,
-      "song_sinh": 3,
-      "soi": 1,
-      "ma_ca_rong": 2,
-      "soi_trum": 1,
-      "bao_ve": 1,
-      "phu_thuy": 1,
-      "khan_do": 1,
-      "ba_ngoai": 1,
-      "tien_tri": 1,
-      "than_tinh_yeu": 1
-    },
-    "thu_tu_goi": {
-      "dem_1": [
-        "than_tinh_yeu",
-        "song_sinh",
-        "bao_ve",
-        "soi_trum",
-        "soi",
-        "ma_ca_rong",
-        "phu_thuy",
-        "tien_tri",
-        "ba_ngoai",
-        "khan_do"
-      ],
-      "dem_thuong": [
-        "bao_ve",
-        "soi_trum",
-        "soi",
-        "ma_ca_rong",
-        "phu_thuy",
-        "tien_tri",
-        "khan_do"
+        "tien_tri_hao_quang",
+        "muc_su"
       ]
     }
   },
@@ -348,51 +318,26 @@
       "tham_tu": 1,
       "dan_lang": 1,
       "nanh_soi": 1,
+      "soi": 1,
       "bao_ve": 1
     },
     "thu_tu_goi": {
       "dem_1": [
         "ke_pha_roi",
         "bao_ve",
+        "soi",
         "nanh_soi",
         "tham_tu",
         "hon_ma",
         "con_lai",
-        "ke_chan_doi"
+        "ke_chan_doi",
+        "bom_nhau",
+        "con_bac"
       ],
       "dem_thuong": [
         "bao_ve",
-        "nanh_soi",
-        "hon_ma"
-      ]
-    }
-  },
-  {
-    "kich_ban": 13,
-    "so_nguoi_choi": 66,
-    "chi_tiet_vai_tro": {
-      "tat_ca_nhan_vat": 1
-    },
-    "thu_tu_goi": {
-      "dem_1": [
-        "than_tinh_yeu",
-        "song_sinh",
-        "bao_ve",
-        "cac_loai_soi",
-        "phap_su",
-        "phu_thuy",
-        "tien_tri",
-        "tien_tri_hao_quang",
-        "cac_vai_dac_biet_khac"
-      ],
-      "dem_thuong": [
-        "bao_ve",
-        "cac_loai_soi",
-        "phap_su",
-        "phu_thuy",
-        "tien_tri",
-        "tien_tri_hao_quang",
-        "cac_vai_dac_biet_khac"
+        "soi",
+        "tham_tu"
       ]
     }
   }

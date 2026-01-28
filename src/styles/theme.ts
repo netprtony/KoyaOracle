@@ -8,6 +8,7 @@ export const theme = {
         surfaceLight: '#2a2a2a',
         primary: '#6366f1',
         primaryDark: '#4f46e5',
+        secondary: '#8b5cf6', // Violet 500
         text: '#ffffff',
         textSecondary: '#a0a0a0',
         danger: '#ef4444',

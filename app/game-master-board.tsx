@@ -8,24 +8,39 @@ import {
   Dimensions,
   Platform,
   Alert,
+  Pressable,
 } from 'react-native';
-import { GestureDetector, Gesture, ScrollView } from 'react-native-gesture-handler';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  runOnJS,
-  interpolate,
-  withTiming,
-} from 'react-native-reanimated';
+import { ScrollView } from 'react-native-gesture-handler';
 import { theme } from '../src/styles/theme';
 import { useGameStore } from '../src/store/gameStore';
 import { getNightSequence } from '../src/engine/nightSequence';
 import { getPhaseDisplay } from '../src/engine/phaseController';
+import { getRoleManager } from '../src/engine/RoleManager';
 import { DaySubPhase } from '../src/types';
+import { NightAction, SkillType } from '../assets/role-types';
+import { SwipeableCardStack } from '../app/components/SwipeableCardStack';
+
+// Skill type display info
+const SKILL_DISPLAY: Record<string, { icon: string; name: string; verb: string }> = {
+  protect: { icon: '🛡️', name: 'Bảo vệ', verb: 'bảo vệ' },
+  kill: { icon: '⚔️', name: 'Tấn công', verb: 'tấn công' },
+  investigate: { icon: '🔍', name: 'Điều tra', verb: 'điều tra' },
+  detectRole: { icon: '👁️', name: 'Phát hiện', verb: 'soi' },
+  heal: { icon: '💊', name: 'Chữa trị', verb: 'chữa trị' },
+  silence: { icon: '🤐', name: 'Phong ấn', verb: 'phong ấn' },
+  bless: { icon: '✨', name: 'Ban phước', verb: 'ban phước' },
+  createLovers: { icon: '💕', name: 'Se duyên', verb: 'se duyên cho' },
+  recruit: { icon: '📿', name: 'Thu nạp', verb: 'thu nạp' },
+  exile: { icon: '🚫', name: 'Trục xuất', verb: 'trục xuất' },
+  copyRole: { icon: '🎭', name: 'Sao chép', verb: 'chọn sao chép' },
+  swapRoles: { icon: '🔄', name: 'Hoán đổi', verb: 'hoán đổi vai trò' },
+  markTargets: { icon: '🎯', name: 'Đánh dấu', verb: 'đánh dấu' },
+  gamble: { icon: '🎲', name: 'Đánh cược', verb: 'đánh cược với' },
+  dual: { icon: '⚗️', name: 'Kép', verb: 'hành động' },
+  none: { icon: '💤', name: 'Không', verb: '' },
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
 const DEFAULT_DISCUSSION_TIME = 180; // 3 minutes
 
 export default function GameMasterBoardScreen() {
@@ -38,16 +53,20 @@ export default function GameMasterBoardScreen() {
     lynchPlayer,
     advanceToNight,
     assignRole,
+    clearGame,
+    initializeGame,
   } = useGameStore();
 
   const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
-  const [showLogPanel, setShowLogPanel] = useState(false);
+  const [showLogPanel, setShowLogPanel] = useState(false); // Can remove this if fully verified, but keeping for safety for now or just ignoring it
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showRoleDesc, setShowRoleDesc] = useState(false);
+  const [showPlayerListModal, setShowPlayerListModal] = useState(false);
 
   // Role Assignment Modal States (Night 1 - Physical Card)
   const [showRoleAssignModal, setShowRoleAssignModal] = useState(false);
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]); // New: For multi-select
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   
   // View Role Modal States (Night 2+ - Physical Card)
   const [showViewRoleModal, setShowViewRoleModal] = useState(false);
@@ -60,9 +79,12 @@ export default function GameMasterBoardScreen() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [lynchTarget, setLynchTarget] = useState<string | null>(null);
   
+  // Skill Modal States
+  const [showSkillModal, setShowSkillModal] = useState(false);
+  const [skillTargets, setSkillTargets] = useState<string[]>([]);
+  
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const viewRoleTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const translateX = useSharedValue(0);
 
   // Timer logic
   useEffect(() => {
@@ -92,6 +114,7 @@ export default function GameMasterBoardScreen() {
   const nightSequence = scenario ? getNightSequence(scenario, availableRoles) : [];
   const isNightPhase = session.currentPhase.type === 'NIGHT';
   const currentRole = isNightPhase ? nightSequence[currentRoleIndex] : null;
+  const alivePlayers = session.players.filter(p => p.isAlive);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -105,37 +128,104 @@ export default function GameMasterBoardScreen() {
   const shouldShowRoleAssignment = isPhysicalCardMode && isNight1;
   const shouldShowViewRole = isPhysicalCardMode && !isNight1 && isNightPhase;
 
-  // Helper: Get quantity of current role in scenario
+  // Helper functions
   const getRoleQuantity = (roleId: string) => {
     const roleDef = scenario?.roles.find(r => r.roleId === roleId);
     return roleDef ? roleDef.quantity : 0;
   };
 
-  // Helper: Get players assigned to a specific role
   const getAssignedPlayersForRole = (roleId: string) => {
     return session.players.filter(p => p.roleId === roleId);
   };
 
-  // Helper: Check if current role has enough players
   const isRoleFullyAssigned = (roleId: string) => {
     const quantity = getRoleQuantity(roleId);
     const assignedCount = getAssignedPlayersForRole(roleId).length;
     return assignedCount >= quantity;
   };
 
-  // Check if ALL roles in the game are fully assigned (for advancing to Day)
   const areAllRolesAssigned = () => {
-    // Check if every player has a roleId
-    // In physical card mode, every player MUST have a role assignment eventually
-    // But strictly speaking, we just need to ensure we assigned roles for all players
     return session.players.every(p => p.roleId !== null);
+  };
+
+  const roleManager = getRoleManager();
+
+  const getCurrentNightAction = (): NightAction | undefined => {
+    if (!currentRole) return undefined;
+    const fullRole = roleManager.getRoleById(currentRole.id);
+    return fullRole?.skills?.nightAction;
+  };
+
+  const getSkillDisplay = (actionType: string) => {
+    return SKILL_DISPLAY[actionType] || SKILL_DISPLAY.none;
+  };
+
+  const getFrequencyText = (frequency?: string): string => {
+    switch (frequency) {
+      case 'everyNight': return 'Mỗi đêm';
+      case 'firstNightOnly': return 'Chỉ đêm đầu';
+      case 'oncePerGame': return 'Một lần/ván';
+      case 'conditional': return 'Có điều kiện';
+      default: return '';
+    }
+  };
+
+  const getRestrictionText = (restrictions?: string[]): string => {
+    if (!restrictions || restrictions.length === 0) return '';
+    const texts: string[] = [];
+    if (restrictions.includes('cannotTargetSamePersonConsecutively')) {
+      texts.push('Không thể chọn cùng 1 người 2 đêm liên tiếp');
+    }
+    if (restrictions.includes('cannotTargetWerewolves')) {
+      texts.push('Không thể chọn Sói');
+    }
+    return texts.join('. ');
+  };
+
+  // Skill Modal Handlers
+  const handleOpenSkillModal = () => {
+    const nightAction = getCurrentNightAction();
+    if (!nightAction) return;
+    setSkillTargets([]);
+    setShowSkillModal(true);
+  };
+
+  const handleToggleSkillTarget = (playerId: string) => {
+    const nightAction = getCurrentNightAction();
+    const targetCount = nightAction?.targetCount || 1;
+    
+    setSkillTargets(prev => {
+      if (prev.includes(playerId)) {
+        return prev.filter(id => id !== playerId);
+      } else if (prev.length < targetCount) {
+        return [...prev, playerId];
+      } else {
+        return [...prev.slice(1), playerId];
+      }
+    });
+  };
+
+  const handleConfirmSkillAction = () => {
+    const nightAction = getCurrentNightAction();
+    if (!currentRole || !nightAction) return;
+    
+    const targetCount = nightAction.targetCount || 1;
+    if (skillTargets.length < targetCount) {
+      Alert.alert('Thiếu mục tiêu', `Cần chọn ${targetCount} mục tiêu.`);
+      return;
+    }
+    
+    recordNightAction(currentRole.id, skillTargets[0] || null);
+    setSelectedTargetId(skillTargets[0] || null);
+    
+    setShowSkillModal(false);
+    setSkillTargets([]);
   };
 
   // --- NAVIGATION HANDLERS ---
 
   const handleNextRole = useCallback(() => {
     if (isNightPhase) {
-      // Validation for Physical Card Mode - Night 1
       if (shouldShowRoleAssignment && currentRole) {
         if (!isRoleFullyAssigned(currentRole.id)) {
           const quantity = getRoleQuantity(currentRole.id);
@@ -156,44 +246,88 @@ export default function GameMasterBoardScreen() {
       if (currentRoleIndex < nightSequence.length - 1) {
         setCurrentRoleIndex(prev => prev + 1);
         setSelectedTargetId(null);
-        translateX.value = 0; // Immediate reset
       } else {
-        // Validation before advancing to Day 1
-        if (isNight1 && isPhysicalCardMode && !areAllRolesAssigned()) {
-          Alert.alert(
-            'Chưa gán đủ vai trò',
-            'Tất cả người chơi phải được gán vai trò trước khi kết thúc đêm 1.',
-            [{ text: 'OK' }]
-          );
-          return;
+        if (isNight1 && isPhysicalCardMode) {
+          // Auto-assign logic for remaining players
+          const unassignedPlayers = session.players.filter(p => !p.roleId);
+          
+          if (unassignedPlayers.length > 0 && scenario) {
+             const remainingRoleCounts: {roleId: string, count: number}[] = [];
+             
+             scenario.roles.forEach(r => {
+                const assignedCount = session.players.filter(p => p.roleId === r.roleId).length;
+                if (assignedCount < r.quantity) {
+                   remainingRoleCounts.push({ roleId: r.roleId, count: r.quantity - assignedCount });
+                }
+             });
+
+             if (remainingRoleCounts.length === 1 && remainingRoleCounts[0].count === unassignedPlayers.length) {
+                const targetRole = remainingRoleCounts[0];
+                const targetRoleName = availableRoles.find(r => r.id === targetRole.roleId)?.name || targetRole.roleId;
+
+                // Auto assign remaining players
+                unassignedPlayers.forEach(p => assignRole(p.id, targetRole.roleId));
+                
+                Alert.alert(
+                  'Tự động gán',
+                  `Đã tự động gán ${unassignedPlayers.length} người chơi còn lại vào vai trò "${targetRoleName}".`,
+                  [{ 
+                    text: 'OK', 
+                    onPress: () => {
+                      advanceToDay();
+                      setCurrentRoleIndex(0);
+                      setSelectedTargetId(null);
+                      setDaySubPhase('SUNRISE');
+                    }
+                  }]
+                );
+                return;
+             }
+          }
+
+          if (!areAllRolesAssigned()) {
+            Alert.alert(
+              'Chưa gán đủ vai trò',
+              'Tất cả người chơi phải được gán vai trò trước khi kết thúc đêm 1.',
+              [{ text: 'OK' }]
+            );
+            return;
+          }
         }
 
         advanceToDay();
         setCurrentRoleIndex(0);
         setSelectedTargetId(null);
         setDaySubPhase('SUNRISE');
-        translateX.value = 0;
       }
     }
-  }, [currentRoleIndex, nightSequence.length, currentRole, selectedTargetId, isNightPhase, shouldShowRoleAssignment, isNight1, isPhysicalCardMode]);
+  }, [
+    currentRoleIndex, 
+    nightSequence.length, 
+    currentRole, 
+    selectedTargetId, 
+    isNightPhase, 
+    shouldShowRoleAssignment, 
+    isNight1, 
+    isPhysicalCardMode,
+    session,
+    scenario,
+    availableRoles,
+    assignRole, 
+    advanceToDay, 
+    recordNightAction
+  ]);
 
   const handlePreviousRole = useCallback(() => {
     if (currentRoleIndex > 0) {
       setCurrentRoleIndex(prev => prev - 1);
       setSelectedTargetId(null);
-      // Animate previous card in from Left
-      translateX.value = -SCREEN_WIDTH;
-      translateX.value = withTiming(0, { duration: 300 });
-    } else {
-      translateX.value = withSpring(0);
     }
   }, [currentRoleIndex]);
 
-  // --- ROLE ASSIGNMENT HANDLERS (Physical Card Mode) ---
-
+  // Role Assignment Handlers
   const handleOpenRoleAssign = () => {
     if (currentRole) {
-      // Pre-fill selected players based on current assignments
       const assigned = getAssignedPlayersForRole(currentRole.id);
       setSelectedPlayerIds(assigned.map(p => p.id));
       setShowRoleAssignModal(true);
@@ -208,10 +342,8 @@ export default function GameMasterBoardScreen() {
     const index = newSelected.indexOf(playerId);
 
     if (index >= 0) {
-      // Remove
       newSelected.splice(index, 1);
     } else {
-      // Add (Check limit)
       if (newSelected.length >= quantity) {
         Alert.alert('Đã đủ số lượng', `Vai trò này chỉ được gán tối đa ${quantity} người.`);
         return;
@@ -230,15 +362,6 @@ export default function GameMasterBoardScreen() {
       return;
     }
 
-    // 1. Unassign players who were deselected (if they previously had this role)
-    // Actually simpler: iterate all players.
-    // If player ID is in selected -> assign currentRole
-    // If player ID NOT in selected BUT currently has currentRole -> unassign
-    // Note: assignRole updates game store immediately. 
-    
-    // We need to be careful not to overwrite other roles if we're not touching them.
-    // Strategy:
-    // A. Unassign current role from anyone who has it but is NOT in selected list.
     const currentlyAssigned = getAssignedPlayersForRole(currentRole.id);
     currentlyAssigned.forEach(p => {
       if (!selectedPlayerIds.includes(p.id)) {
@@ -246,7 +369,6 @@ export default function GameMasterBoardScreen() {
       }
     });
 
-    // B. Assign current role to everyone in selected list
     selectedPlayerIds.forEach(pid => {
       assignRole(pid, currentRole!.id);
     });
@@ -255,23 +377,10 @@ export default function GameMasterBoardScreen() {
   };
 
   const handleViewRole = () => {
-    // For Night 2+, we view the role of the CARD, but logic might be different?
-    // User request: "Night 2+ ... icon xem vai trò".
-    // Wait, viewing role usually means checking a player's role.
-    // In "Physical Card", Night 2+, the CARD is active (e.g. Wolf).
-    // So we probably want to see WHO are the Wolves.
-    
     if (currentRole) {
-      setViewingRole({ name: currentRole.name, icon: currentRole.icon }); // Just placeholder for modal title
-      // We'll reuse the view modal but maybe show list of players?
-      // Or maybe the requirement meant checking a specific player's role?
-      // "nút icon xem vai trò sẽ hiện thị modal hiện 2 giây"
-      // Let's assume it shows "Who holds this role".
-      
-      // Update logic: show assigned players in the modal
+      setViewingRole({ name: currentRole.name, icon: currentRole.icon });
       setShowViewRoleModal(true);
       
-      // Auto-close after 2 seconds
       viewRoleTimerRef.current = setTimeout(() => {
         setShowViewRoleModal(false);
         setViewingRole(null);
@@ -287,7 +396,6 @@ export default function GameMasterBoardScreen() {
     setViewingRole(null);
   };
 
-  // Cleanup view role timer on unmount
   useEffect(() => {
     return () => {
       if (viewRoleTimerRef.current) {
@@ -296,70 +404,7 @@ export default function GameMasterBoardScreen() {
     };
   }, []);
 
-  // --- GESTURE & ANIMATION ---
-
-  const panGesture = Gesture.Pan()
-    .activeOffsetX([-20, 20]) // prevent accidental swipes
-    .onUpdate((event) => {
-      if (isNightPhase) {
-        translateX.value = event.translationX;
-      }
-    })
-    .onEnd((event) => {
-      if (isNightPhase) {
-        if (event.translationX > SWIPE_THRESHOLD) {
-          // Swipe Right (Next)
-          translateX.value = withTiming(SCREEN_WIDTH, { duration: 200 }, () => {
-             runOnJS(handleNextRole)();
-          });
-        } else if (event.translationX < -SWIPE_THRESHOLD) {
-          // Swipe Left (Previous)
-          translateX.value = withTiming(-SCREEN_WIDTH, { duration: 200 }, () => {
-            runOnJS(handlePreviousRole)();
-          });
-        } else {
-          // Reset
-          translateX.value = withSpring(0);
-        }
-      }
-    });
-
-  const cardStyle = useAnimatedStyle(() => {
-    const rotate = interpolate(
-      translateX.value,
-      [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-      [-15, 0, 15],
-      'clamp'
-    );
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { rotate: `${rotate}deg` }
-      ],
-    };
-  });
-
-  const nextCardStyle = useAnimatedStyle(() => {
-    const scale = interpolate(
-      Math.abs(translateX.value),
-      [0, SCREEN_WIDTH],
-      [0.9, 1],
-      'clamp'
-    );
-    const opacity = interpolate(
-      Math.abs(translateX.value),
-      [0, SCREEN_WIDTH],
-      [0.6, 1],
-      'clamp'
-    );
-    return {
-      transform: [{ scale }],
-      opacity,
-    };
-  });
-
-  // --- DAY PHASE LOGIC ---
-
+  // Day Phase Handlers
   const handleStartDiscussion = () => {
     setDaySubPhase('DISCUSSION');
     setTimeRemaining(discussionTime);
@@ -384,151 +429,220 @@ export default function GameMasterBoardScreen() {
     setDaySubPhase('SUNRISE');
   };
 
-  const alivePlayers = session.players.filter((p) => p.isAlive);
+  /* Removed duplicate alivePlayers declaration */
+  // alivePlayers is already declared above
   const lynchedPlayer = lynchTarget ? session.players.find(p => p.id === lynchTarget) : null;
+
+  // --- SIDEBAR HANDLERS ---
+  const handlePauseGame = () => {
+    setIsTimerRunning(false);
+    setIsSidebarOpen(false);
+    Alert.alert('Đã tạm dừng', 'Trò chơi (bộ đếm giờ) đã được tạm dừng.', [{ text: 'OK' }]);
+  };
+
+  const handleRestartGame = () => {
+    Alert.alert(
+      'Bắt đầu lại?',
+      'Bạn có chắc muốn chơi lại ván này từ đầu? Mọi tiến trình hiện tại sẽ bị xóa.',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Chơi lại',
+          style: 'destructive',
+          onPress: () => {
+             const originalPlayers = session.players.map(p => ({
+               name: p.name,
+               color: p.color
+             })).sort((a, b) => {
+                 // Try to restore original order if possible, or just keep as is
+                 // session.players usually maintains order unless sorted.
+                 // position is stored in player object.
+                 return 0;
+             });
+             
+             // Sort by position to ensure same order
+             session.players.sort((a, b) => (a.position || 0) - (b.position || 0));
+             
+             const playerConfigs = session.players.map(p => ({
+                 name: p.name,
+                 color: p.color
+             }));
+
+             initializeGame(session.mode, session.scenarioId, playerConfigs);
+             setIsSidebarOpen(false);
+             setDaySubPhase('SUNRISE');
+             setCurrentRoleIndex(0);
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEndGame = () => {
+    Alert.alert(
+      'Kết thúc trò chơi?',
+      'Bạn có chắc chắn muốn kết thúc và trở về màn hình chính?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        { 
+          text: 'Kết thúc', 
+          style: 'destructive', 
+          onPress: () => {
+            clearGame();
+          }
+        }
+      ]
+    );
+  };
 
   // --- RENDER HELPERS ---
 
-  const renderRoleCard = () => {
-    if (!currentRole) return null;
+  const renderRoleCardContent = (role: any, isActive: boolean = false) => {
+    const nightAction = getCurrentNightAction();
+    const skillInfo = nightAction ? getSkillDisplay(nightAction.type) : null;
+    const hasSkill = nightAction && nightAction.type !== 'none';
+
+    // styles.cardInner has flex:1 and padding:24.
     
-    // Calculate next role for "Next Card" preview
-    const nextRole = currentRoleIndex < nightSequence.length - 1 
-      ? nightSequence[currentRoleIndex + 1] 
-      : { name: 'Trời sáng', icon: '🌅' };
-
     return (
-      <View style={styles.cardContainer}>
-        {/* Background "Next" Card */}
-        <Animated.View style={[styles.card, styles.nextCard, nextCardStyle]}>
-          <Text style={styles.cardIconSmall}>{nextRole.icon}</Text>
-          <Text style={styles.cardTitleSmall}>{nextRole.name}</Text>
-        </Animated.View>
-
-        {/* Active Card */}
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.card, cardStyle]}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardCount}>
-                Role {currentRoleIndex + 1} / {nightSequence.length}
+      <Pressable 
+        style={styles.cardInner}
+        onLongPress={isActive ? () => setShowPlayerListModal(true) : undefined}
+        delayLongPress={500}
+        disabled={!isActive}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardCount}>
+            Role {currentRoleIndex + 1} / {nightSequence.length}
+          </Text>
+          
+          {shouldShowRoleAssignment && role && isActive && (
+            <TouchableOpacity 
+              style={styles.roleAssignBtn}
+              onPress={handleOpenRoleAssign}
+            >
+              <Text style={styles.roleAssignBtnText}>
+                {isRoleFullyAssigned(role.id) 
+                  ? `✓ ${getAssignedPlayersForRole(role.id).length}/${getRoleQuantity(role.id)}` 
+                  : `+ ${getAssignedPlayersForRole(role.id).length}/${getRoleQuantity(role.id)}`}
               </Text>
-              
-              {/* Role Assignment Button (Night 1 - Physical Card) */}
-              {shouldShowRoleAssignment && currentRole && (
-                <TouchableOpacity 
-                  style={styles.roleAssignBtn}
-                  onPress={handleOpenRoleAssign}
-                >
-                  <Text style={styles.roleAssignBtnText}>
-                    {isRoleFullyAssigned(currentRole.id) 
-                      ? `Đã gán: ${getAssignedPlayersForRole(currentRole.id).length}/${getRoleQuantity(currentRole.id)}` 
-                      : `+ Gán (${getAssignedPlayersForRole(currentRole.id).length}/${getRoleQuantity(currentRole.id)})`}
-                  </Text>
-                </TouchableOpacity>
-              )}
+            </TouchableOpacity>
+          )}
 
-              {/* View Role Button (Night 2+ - Physical Card) */}
-              {shouldShowViewRole && currentRole && (
-                <TouchableOpacity 
-                  style={styles.viewRoleBtn}
-                  onPress={handleViewRole}
-                >
-                  <Text style={styles.viewRoleBtnText}>👁️</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+          {shouldShowViewRole && role && isActive && (
+            <TouchableOpacity 
+              style={styles.viewRoleBtn}
+              onPress={handleViewRole}
+            >
+              <Text style={styles.viewRoleBtnText}>👁️</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-            <View style={styles.cardContent}>
-              <Text style={styles.cardIcon}>{currentRole.icon}</Text>
-              <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle}>{currentRole.name}</Text>
-                <TouchableOpacity onPress={() => setShowRoleDesc(true)} style={styles.infoBtn}>
-                  <Text style={styles.infoBtnText}>ℹ️</Text>
-                </TouchableOpacity>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardIcon}>{role.icon}</Text>
+          <View style={styles.cardTitleRow}>
+            <Text style={styles.cardTitle}>{role.name}</Text>
+            {isActive && (
+              <TouchableOpacity onPress={() => setShowRoleDesc(true)} style={styles.infoBtn}>
+                <Text style={styles.infoBtnText}>ℹ️</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        
+        {isActive && hasSkill && skillInfo ? (
+          <View style={styles.skillSection}>
+            <View style={styles.skillBadge}>
+              <Text style={styles.skillIcon}>{skillInfo.icon}</Text>
+              <View style={styles.skillInfo}>
+                <Text style={styles.skillName}>{skillInfo.name}</Text>
+                <Text style={styles.skillFrequency}>{getFrequencyText(nightAction?.frequency)}</Text>
               </View>
-
-              {/* Show Assigned Players (Physical Card Mode) */}
-              {isPhysicalCardMode && (
-                <View style={styles.assignedPlayersContainer}>
-                  <Text style={styles.assignedPlayersLabel}>Người chơi:</Text>
-                  {getAssignedPlayersForRole(currentRole.id).length > 0 ? (
-                    <View style={styles.assignedBadges}>
-                      {getAssignedPlayersForRole(currentRole.id).map(p => (
-                        <View key={p.id} style={[styles.assignedBadge, { backgroundColor: p.color }]}>
-                          <Text style={styles.assignedBadgeText}>{p.name}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <Text style={styles.noAssignedText}>(Chưa gán)</Text>
-                  )}
-                </View>
-              )}
+              <View style={styles.skillTargetCount}>
+                <Text style={styles.skillTargetCountText}>
+                  {nightAction?.targetCount || 1} mục tiêu
+                </Text>
+              </View>
             </View>
             
-            {/* Target Selection in ScrollView inside Card */}
-            {currentRole.nightActionType === 'selectTarget' ? (
-               <View style={styles.targetSection}>
-                 <Text style={styles.sectionTitle}>🎯 Chọn mục tiêu ({alivePlayers.length})</Text>
-                 <ScrollView 
-                    style={styles.targetList} 
-                    contentContainerStyle={{ paddingBottom: 20 }}
-                    showsVerticalScrollIndicator={true}
-                    nestedScrollEnabled={true}
-                 >
-                   {alivePlayers.length === 0 ? (
-                      <Text style={styles.emptyText}>Không còn người chơi nào sống.</Text>
-                   ) : (
-                     alivePlayers.map(player => (
-                       <TouchableOpacity
-                         key={player.id}
-                         style={[
-                           styles.targetItem,
-                           selectedTargetId === player.id && styles.targetItemSelected,
-                           { borderLeftColor: player.color }
-                         ]}
-                         onPress={() => setSelectedTargetId(player.id)}
-                         activeOpacity={0.7}
-                       >
-                         <Text style={[
-                           styles.targetName,
-                           selectedTargetId === player.id && styles.targetNameSelected
-                         ]}>
-                           {player.name}
-                         </Text>
-                         {selectedTargetId === player.id && <Text style={styles.checkIcon}>✓</Text>}
-                       </TouchableOpacity>
-                     ))
-                   )}
-                 </ScrollView>
-               </View>
-            ) : (
-               <View style={styles.instructionSection}>
-                 <Text style={styles.instructionText}>
-                   Gọi {currentRole.name} dậy và thực hiện hành động.
-                 </Text>
-                 <Text style={styles.swipeHint}>Vuốt phải để tiếp tục ››</Text>
-               </View>
+            {nightAction?.restrictions && nightAction.restrictions.length > 0 && (
+              <Text style={styles.restrictionText}>
+                ⚠️ {getRestrictionText(nightAction.restrictions)}
+              </Text>
             )}
-          </Animated.View>
-        </GestureDetector>
+            
+            {selectedTargetId && (
+              <View style={styles.selectedTargetDisplay}>
+                <Text style={styles.selectedTargetLabel}>Đã chọn:</Text>
+                <Text style={styles.selectedTargetName}>
+                  {alivePlayers.find(p => p.id === selectedTargetId)?.name || 'Không xác định'}
+                </Text>
+              </View>
+            )}
+            
+            <TouchableOpacity 
+              style={[styles.skillActionBtn, selectedTargetId && styles.skillActionBtnDone]}
+              onPress={handleOpenSkillModal}
+            >
+              <Text style={styles.skillActionBtnText}>
+                {selectedTargetId 
+                  ? `✓ Đã ${skillInfo.verb}` 
+                  : `${skillInfo.icon} Chọn để ${skillInfo.verb}`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : isActive ? (
+          <View style={styles.instructionSection}>
+            <Text style={styles.instructionText}>
+              Gọi {role.name} dậy và thực hiện hành động.
+            </Text>
+            <Text style={styles.swipeHint}>Vuốt để tiếp tục ››</Text>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  };
+
+  const renderNightPhase = () => {
+    // Prepare cards for SwipeableCardStack
+    const cards = nightSequence.map((role, index) => ({
+      id: role.id,
+      icon: role.icon,
+      name: role.name,
+      content: renderRoleCardContent(role, index === currentRoleIndex),
+    }));
+
+    return (
+      <View style={styles.nightContainer}>
+        <SwipeableCardStack
+          cards={cards}
+          currentIndex={currentRoleIndex}
+          onSwipeLeft={handlePreviousRole}
+          onSwipeRight={handleNextRole}
+          canSwipeLeft={currentRoleIndex > 0}
+          canSwipeRight={currentRoleIndex < nightSequence.length - 1 || !shouldShowRoleAssignment || (!!currentRole && isRoleFullyAssigned(currentRole.id))}
+        />
         
-        {/* Action Bar (Fixed at bottom of screen usually, but here part of card view) */}
-        <View style={styles.nightActions}>
+        {/* Action Buttons */}
+        <View style={styles.nightActionsFixed}>
           <TouchableOpacity 
-            style={styles.actionButtonSecondary} 
+            style={[styles.actionButtonSecondary, currentRoleIndex === 0 && styles.disabledBtn]} 
             onPress={handlePreviousRole}
             disabled={currentRoleIndex === 0}
           >
-            <Text style={[styles.actionBtnTextSec, currentRoleIndex === 0 && { opacity: 0.3 }]}>Previous</Text>
+            <Text style={[styles.actionBtnTextSec, currentRoleIndex === 0 && { opacity: 0.3 }]}>
+              ‹ Trước
+            </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.actionButtonPrimary, !selectedTargetId && currentRole.nightActionType === 'selectTarget' && styles.disabledBtn]} 
+            style={styles.actionButtonPrimary} 
             onPress={handleNextRole}
-            disabled={currentRole.nightActionType === 'selectTarget' && !selectedTargetId}
           >
-            <Text style={styles.actionBtnText}>Next Role</Text>
+            <Text style={styles.actionBtnText}>
+              {currentRoleIndex === nightSequence.length - 1 ? 'Kết thúc đêm' : 'Tiếp ›'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -646,16 +760,66 @@ export default function GameMasterBoardScreen() {
             {isNightPhase ? `ĐÊM ${session.currentPhase.number}` : `NGÀY ${session.currentPhase.number}`}
           </Text>
         </View>
-        <TouchableOpacity style={styles.logIconBtn} onPress={() => setShowLogPanel(true)}>
-          <Text style={styles.headerIcon}>📜</Text>
+        <TouchableOpacity style={styles.logIconBtn} onPress={() => setIsSidebarOpen(true)}>
+          <Text style={styles.headerIcon}>☰</Text>
         </TouchableOpacity>
       </View>
 
       {/* BODY */}
       <View style={styles.body}>
-        {isNightPhase ? renderRoleCard() : renderDayPhase()}
+        {isNightPhase ? renderNightPhase() : renderDayPhase()}
       </View>
 
+      {/* SIDEBAR */}
+      {isSidebarOpen && (
+        <View style={styles.sidebarOverlay}>
+           <TouchableOpacity 
+              style={styles.sidebarBackdrop} 
+              activeOpacity={1} 
+              onPress={() => setIsSidebarOpen(false)} 
+           />
+           <View style={styles.sidebarContainer}>
+              <View style={styles.sidebarHeader}>
+                 <Text style={styles.sidebarTitle}>Menu</Text>
+                 <TouchableOpacity onPress={() => setIsSidebarOpen(false)}>
+                    <Text style={styles.closeBtn}>✕</Text>
+                 </TouchableOpacity>
+              </View>
+              
+              <View style={styles.sidebarMenu}>
+                 <TouchableOpacity style={styles.menuItem} onPress={handlePauseGame}>
+                    <Text style={styles.menuItemIcon}>⏸</Text>
+                    <Text style={styles.menuItemText}>Tạm hoãn</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity style={styles.menuItem} onPress={handleRestartGame}>
+                    <Text style={styles.menuItemIcon}>🔄</Text>
+                    <Text style={styles.menuItemText}>Bắt đầu lại</Text>
+                 </TouchableOpacity>
+                 <TouchableOpacity style={[styles.menuItem, styles.menuItemDestructive]} onPress={handleEndGame}>
+                    <Text style={styles.menuItemIcon}>❌</Text>
+                    <Text style={[styles.menuItemText, styles.textDestructive]}>Kết thúc trò chơi</Text>
+                 </TouchableOpacity>
+              </View>
+
+              <View style={styles.sidebarDivider} />
+              
+              <Text style={styles.sidebarSectionTitle}>Nhật ký trận đấu</Text>
+              <ScrollView style={styles.sidebarLogBody}>
+                  {session.matchLog.slice().reverse().map(entry => (
+                    <View key={entry.id} style={styles.logRow}>
+                      <Text style={styles.logTime}>{getPhaseDisplay(entry.phase)}</Text>
+                      <Text style={styles.logMsg}>{entry.message}</Text>
+                    </View>
+                  ))}
+                  {session.matchLog.length === 0 && (
+                    <Text style={styles.emptyText}>Chưa có ghi chép nào.</Text>
+                  )}
+              </ScrollView>
+           </View>
+        </View>
+      )}
+
+      {/* MODALS - Keep all existing modals */}
       {/* LOG MODAL */}
       <Modal visible={showLogPanel} animationType="slide" transparent onRequestClose={() => setShowLogPanel(false)}>
         <View style={styles.modalOverlay}>
@@ -698,6 +862,89 @@ export default function GameMasterBoardScreen() {
         </View>
       </Modal>
 
+      {/* SKILL TARGET SELECTION MODAL */}
+      <Modal visible={showSkillModal} animationType="slide" transparent onRequestClose={() => setShowSkillModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalPanel, { height: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>
+                  {(() => {
+                     const action = getCurrentNightAction();
+                     return action ? `${getSkillDisplay(action.type).name}` : 'Chọn mục tiêu';
+                  })()}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  {(() => {
+                     const action = getCurrentNightAction();
+                     const targetCount = action?.targetCount || 1;
+                     return `Chọn ${skillTargets.length}/${targetCount} mục tiêu`;
+                  })()}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowSkillModal(false)}>
+                <Text style={styles.closeBtn}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody}>
+              {alivePlayers.length === 0 ? (
+                <Text style={styles.emptyText}>Không còn người chơi sống sót.</Text>
+              ) : (
+                alivePlayers.map(player => {
+                  const isSelected = skillTargets.includes(player.id);
+                  const action = getCurrentNightAction();
+                  const targetCount = action?.targetCount || 1;
+                  
+                  let isDisabled = false;
+                  if (action && !action.canTargetSelf && player.id === getAssignedPlayersForRole(currentRole?.id || '')[0]?.id) {
+                     isDisabled = true;
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      key={player.id}
+                      style={[
+                        styles.playerRow,
+                        isSelected && styles.playerRowSelected,
+                        isDisabled && styles.playerRowDisabled,
+                        { borderLeftColor: player.color }
+                      ]}
+                      onPress={() => !isDisabled && handleToggleSkillTarget(player.id)}
+                      disabled={isDisabled}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.playerInfo}>
+                        <Text style={[styles.playerName, isSelected && styles.playerNameSelected, isDisabled && styles.playerNameDisabled]}>
+                          {player.name}
+                        </Text>
+                        {isDisabled && <Text style={styles.playerRoleText}>(Không thể chọn)</Text>}
+                      </View>
+                      <View style={[styles.checkBox, isSelected && styles.checkBoxSelected]}>
+                        {isSelected && <Text style={styles.checkMark}>✓</Text>}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+            
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={[
+                  styles.saveBtn, 
+                  (skillTargets.length < (getCurrentNightAction()?.targetCount || 1)) && styles.disabledBtn
+                ]}
+                onPress={handleConfirmSkillAction}
+                disabled={skillTargets.length < (getCurrentNightAction()?.targetCount || 1)}
+              >
+                <Text style={styles.saveBtnText}>Xác nhận hành động</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ROLE ASSIGNMENT MODAL (Night 1 - Physical Card) */}
       <Modal visible={showRoleAssignModal} animationType="slide" transparent onRequestClose={() => setShowRoleAssignModal(false)}>
         <View style={styles.modalOverlay}>
@@ -719,13 +966,9 @@ export default function GameMasterBoardScreen() {
             <ScrollView style={styles.modalBody}>
               <Text style={styles.roleListLabel}>Danh sách người chơi:</Text>
               {session.players.map(player => {
-                // Check availability
-                // Player is disabled if they have a role AND it's NOT the current role
-                // (i.e. they are assigned to something else)
                 const isAssignedToOther = player.roleId && player.roleId !== currentRole?.id;
                 const isSelected = selectedPlayerIds.includes(player.id);
                 
-                // Get name of other role if assigned
                 const otherRoleName = isAssignedToOther 
                   ? availableRoles.find(r => r.id === player.roleId)?.name 
                   : '';
@@ -763,7 +1006,6 @@ export default function GameMasterBoardScreen() {
               })}
             </ScrollView>
 
-            {/* Footer with Save Button */}
             <View style={styles.modalFooter}>
               <TouchableOpacity 
                 style={[
@@ -781,7 +1023,6 @@ export default function GameMasterBoardScreen() {
       </Modal>
 
       {/* VIEW ROLE MODAL (Night 2+ - Physical Card) */}
-      {/* VIEW ROLE MODAL (Night 2+ - Physical Card) */}
       <Modal visible={showViewRoleModal} animationType="fade" transparent onRequestClose={handleCloseViewRole}>
         <TouchableOpacity 
           style={styles.modalOverlay} 
@@ -794,7 +1035,6 @@ export default function GameMasterBoardScreen() {
                 <Text style={styles.viewRoleIcon}>{viewingRole.icon}</Text>
                 <Text style={styles.viewRoleName}>{viewingRole.name}</Text>
                 
-                {/* Show assigned players */}
                 {currentRole && getAssignedPlayersForRole(currentRole.id).length > 0 && (
                    <View style={styles.viewRolePlayersList}>
                       {getAssignedPlayersForRole(currentRole.id).map(p => (
@@ -811,6 +1051,41 @@ export default function GameMasterBoardScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* PLAYER LIST MODAL (Long Press) */}
+      <Modal visible={showPlayerListModal} animationType="slide" transparent onRequestClose={() => setShowPlayerListModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalPanel, { height: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Danh sách người chơi</Text>
+              <TouchableOpacity onPress={() => setShowPlayerListModal(false)}>
+                <Text style={styles.closeBtn}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              {session.players.map(player => {
+                 const role = availableRoles.find(r => r.id === player.roleId);
+                 return (
+                   <View key={player.id} style={styles.playerListItem}>
+                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <View style={[styles.playerColorDotBig, { backgroundColor: player.color }]} />
+                        <View>
+                           <Text style={[styles.playerNameList, !player.isAlive && styles.playerDeadText]}>
+                              {player.name}
+                           </Text>
+                           <Text style={styles.playerRoleTextList}>
+                              {role ? `${role.icon} ${role.name}` : 'Chưa có vai trò'}
+                           </Text>
+                        </View>
+                     </View>
+                     {!player.isAlive && <Text style={styles.deadLabel}>Đã chết</Text>}
+                   </View>
+                 );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -818,7 +1093,7 @@ export default function GameMasterBoardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827', // darker bg
+    backgroundColor: '#111827',
   },
   header: {
     flexDirection: 'row',
@@ -827,7 +1102,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'android' ? 40 : 60,
     paddingBottom: 20,
-    backgroundColor: '#1F2937', // dark surface
+    backgroundColor: '#1F2937',
     zIndex: 10,
   },
   headerLeft: {
@@ -835,7 +1110,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   phaseIndicator: {
-    color: '#818CF8', // indigo-400
+    color: '#818CF8',
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 1.5,
@@ -853,43 +1128,32 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   
-  // CARD STYLES
-  cardContainer: {
+  // NIGHT PHASE
+  nightContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
+    position: 'relative',
   },
-  card: {
-    width: SCREEN_WIDTH - 40,
-    height: '75%',
-    backgroundColor: '#1F2937',
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 5,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: '#374151',
-    zIndex: 2,
-    alignItems: 'center',
-  },
-  nextCard: {
+  nightActionsFixed: {
     position: 'absolute',
-    zIndex: 1,
-    top: 40, // slightly lower
-    transform: [{ scale: 0.9 }],
-    backgroundColor: '#111827', // darker
-    opacity: 0.5,
-    justifyContent: 'center',
-    alignItems: 'center',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    gap: 12,
+    zIndex: 100,
+  },
+  
+  // CARD INNER CONTENT
+  cardInner: {
+    flex: 1,
+    padding: 24,
   },
   cardHeader: {
     width: '100%',
-    alignItems: 'flex-end',
-    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   cardCount: {
     color: '#6B7280',
@@ -898,24 +1162,19 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 16,
   },
   cardIcon: {
-    fontSize: 48, // Reduced from 80
-    marginBottom: 4,
-  },
-  cardIconSmall: {
-    fontSize: 40,
+    fontSize: 48,
     marginBottom: 8,
   },
   cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
   },
   cardTitle: {
-    fontSize: 24, // Reduced from 28
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#F9FAFB',
     textAlign: 'center',
@@ -926,11 +1185,6 @@ const styles = StyleSheet.create({
   infoBtnText: {
     fontSize: 20,
   },
-  cardTitleSmall: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#9CA3AF',
-  },
   cardDesc: {
     fontSize: 16,
     color: '#9CA3AF',
@@ -938,62 +1192,88 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   
-  // TARGET SELECTION
-  targetSection: {
+  // SKILL SECTION
+  skillSection: {
     flex: 1,
     width: '100%',
-    marginTop: 4,
     backgroundColor: '#111827',
     borderRadius: 16,
-    padding: 4,
+    padding: 16,
   },
-  sectionTitle: {
-    color: '#D1D5DB',
-    fontSize: 14,
-    fontWeight: '600',
-    padding: 12,
-  },
-  targetList: {
-    flex: 1,
-    paddingHorizontal: 8,
-  },
-  targetItem: {
+  skillBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
     backgroundColor: '#1F2937',
     borderRadius: 12,
-    marginBottom: 8,
-    borderLeftWidth: 4,
+    padding: 12,
   },
-  targetItemSelected: {
-    backgroundColor: '#3730A3', // indigo-900
-    borderLeftColor: '#818CF8', // indigo-400
+  skillIcon: {
+    fontSize: 32,
+    marginRight: 12,
   },
-  targetName: {
-    color: '#E5E7EB',
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 10,
+  skillInfo: {
+    flex: 1,
   },
-  targetNameSelected: {
+  skillName: {
     color: '#FFFFFF',
+    fontSize: 18,
     fontWeight: 'bold',
   },
-  checkIcon: {
-    color: '#818CF8',
-    fontWeight: 'bold',
-    fontSize: 20,
-    marginLeft: 'auto',
-  },
-  emptyText: {
+  skillFrequency: {
     color: '#9CA3AF',
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 14,
+    fontSize: 12,
+    marginTop: 2,
   },
-  
-  // INSTRUCTIONS
+  skillTargetCount: {
+    backgroundColor: '#374151',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  skillTargetCountText: {
+    color: '#D1D5DB',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  restrictionText: {
+    color: '#FBBF24',
+    fontSize: 12,
+    marginTop: 10,
+    fontStyle: 'italic',
+  },
+  selectedTargetDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: '#3730A3',
+    borderRadius: 8,
+  },
+  selectedTargetLabel: {
+    color: '#A5B4FC',
+    fontSize: 14,
+    marginRight: 8,
+  },
+  selectedTargetName: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  skillActionBtn: {
+    marginTop: 16,
+    backgroundColor: '#4F46E5',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  skillActionBtnDone: {
+    backgroundColor: '#059669',
+  },
+  skillActionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   instructionSection: {
     flex: 1,
     justifyContent: 'center',
@@ -1013,26 +1293,24 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-
-  // CARD ACTIONS
-  nightActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginTop: 20,
-    gap: 12,
-  },
+  
+  // ACTION BUTTONS
   actionButtonPrimary: {
     flex: 1,
-    backgroundColor: '#6366F1', // indigo-500
-    paddingVertical: 14,
+    backgroundColor: '#6366F1',
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   actionButtonSecondary: {
     flex: 1,
     backgroundColor: '#374151',
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
@@ -1102,7 +1380,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   nightBtn: {
-    backgroundColor: '#4C1D95', // violet-900
+    backgroundColor: '#4C1D95',
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 100,
@@ -1169,8 +1447,8 @@ const styles = StyleSheet.create({
     borderColor: '#374151',
   },
   gridItemSelected: {
-    backgroundColor: '#312E81', // indigo-950
-    borderColor: '#818CF8', // indigo-400
+    backgroundColor: '#312E81',
+    borderColor: '#818CF8',
   },
   playerBadge: {
     width: 12,
@@ -1230,13 +1508,14 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalPanel: {
     backgroundColor: '#1F2937',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    height: '80%',
+    borderRadius: 24,
+    width: '90%',
+    maxHeight: '80%',
     padding: 24,
   },
   modalHeader: {
@@ -1277,8 +1556,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
-
-  // ROLE ASSIGNMENT BUTTON (Night 1)
   roleAssignBtn: {
     backgroundColor: '#6366F1',
     paddingHorizontal: 12,
@@ -1290,8 +1567,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-
-  // VIEW ROLE BUTTON (Night 2+)
   viewRoleBtn: {
     backgroundColor: '#374151',
     paddingHorizontal: 12,
@@ -1301,15 +1576,11 @@ const styles = StyleSheet.create({
   viewRoleBtnText: {
     fontSize: 18,
   },
-
-  // MODAL HEADER SUBTITLE
   modalSubtitle: {
     color: '#9CA3AF',
     fontSize: 14,
     marginTop: 4,
   },
-
-  // MODAL FOOTER
   modalFooter: {
     marginTop: 16,
     paddingTop: 16,
@@ -1331,44 +1602,46 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-
-  // ASSIGNED PLAYERS (IN CARD)
-  assignedPlayersContainer: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.1)',
-  },
-  assignedPlayersLabel: {
-    color: '#9CA3AF',
-    fontSize: 12,
+  // LIST STYLES
+  playerListItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#374151',
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
     marginBottom: 8,
   },
-  assignedBadges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  playerColorDotBig: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
-  assignedBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  assignedBadgeText: {
+  playerNameList: {
     color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  playerRoleTextList: {
+    color: '#9CA3AF',
+    fontSize: 14,
+  },
+  playerDeadText: {
+    textDecorationLine: 'line-through',
+    color: '#6B7280',
+  },
+  deadLabel: {
+    color: '#EF4444',
     fontSize: 12,
     fontWeight: 'bold',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  noAssignedText: {
-    color: '#6B7280',
-    fontSize: 14,
-    fontStyle: 'italic',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
   },
 
-  // ROLE LIST (MODAL)
   roleListLabel: {
     color: '#D1D5DB',
     fontSize: 16,
@@ -1387,7 +1660,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   roleOptionDisabled: {
-    opacity: 0.6, // Keep readable
+    opacity: 0.6,
     backgroundColor: '#111827',
   },
   roleOptionSelected: {
@@ -1416,7 +1689,7 @@ const styles = StyleSheet.create({
   },
   roleOptionCount: {
     fontSize: 14,
-    color: '#6366F1', // Highlight the "Already assigned" text
+    color: '#6366F1',
     fontWeight: '500', 
   },
   roleOptionCheck: {
@@ -1424,8 +1697,62 @@ const styles = StyleSheet.create({
     color: '#6366F1',
     fontWeight: 'bold',
   },
-
-  // VIEW ROLE MODAL STYLES
+  playerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderLeftWidth: 4,
+  },
+  playerRowSelected: {
+    borderColor: '#6366F1',
+    backgroundColor: '#1E1B4B',
+  },
+  playerRowDisabled: {
+    opacity: 0.5,
+    backgroundColor: '#111827',
+  },
+  playerInfo: {
+    flex: 1,
+  },
+  playerName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F9FAFB',
+    marginBottom: 2,
+  },
+  playerNameSelected: {
+    color: '#818CF8',
+  },
+  playerNameDisabled: {
+    color: '#9CA3AF',
+  },
+  playerRoleText: {
+    fontSize: 12,
+    color: '#EF4444',
+  },
+  checkBox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#4B5563',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkBoxSelected: {
+    backgroundColor: '#6366F1',
+    borderColor: '#6366F1',
+  },
+  checkMark: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   viewRoleCard: {
     backgroundColor: '#1F2937',
     borderRadius: 20,
@@ -1438,28 +1765,114 @@ const styles = StyleSheet.create({
   },
   viewRoleIcon: {
     fontSize: 80,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   viewRoleName: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#F9FAFB',
-    marginBottom: 12,
-    textAlign: 'center',
+    color: '#FFF',
+    marginBottom: 20,
   },
   viewRolePlayersList: {
-    marginTop: 10,
     marginBottom: 20,
     alignItems: 'center',
+    width: '100%',
   },
   viewRolePlayerName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     marginVertical: 4,
   },
   viewRoleHint: {
-    fontSize: 12,
     color: '#9CA3AF',
-    fontStyle: 'italic',
+    fontSize: 14,
+    marginTop: 20,
+  },
+  emptyText: {
+    color: '#6B7280',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  // SIDEBAR STYLES
+  sidebarOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
+    flexDirection: 'row',
+  },
+  sidebarBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sidebarContainer: {
+    width: '75%',
+    maxWidth: 320,
+    backgroundColor: '#111827',
+    borderLeftWidth: 1,
+    borderLeftColor: '#374151',
+    padding: 20,
+    paddingTop: Platform.OS === 'android' ? 40 : 20,
+    shadowColor: '#000',
+    shadowOffset: { width: -2, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 20,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingRight: 8,
+  },
+  sidebarTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#F9FAFB',
+  },
+  sidebarMenu: {
+    gap: 12,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+  },
+  menuItemIcon: {
+    fontSize: 20,
+    marginRight: 16,
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: '#E5E7EB',
+    fontWeight: '600',
+  },
+  menuItemDestructive: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  textDestructive: {
+    color: '#EF4444',
+  },
+  sidebarDivider: {
+    height: 1,
+    backgroundColor: '#374151',
+    marginVertical: 24,
+  },
+  sidebarSectionTitle: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+  sidebarLogBody: {
+    flex: 1,
   },
 });

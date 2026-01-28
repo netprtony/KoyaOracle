@@ -144,4 +144,8 @@ export interface GameState {
 
     // Asset loading
     loadAssets: () => Promise<void>;
+
+    // Custom Scenarios
+    addCustomScenario: (name: string, roles: ScenarioRole[]) => Promise<void>;
+    deleteCustomScenario: (id: string) => Promise<void>;
 }
