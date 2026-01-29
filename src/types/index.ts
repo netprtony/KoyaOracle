@@ -20,10 +20,17 @@ export type NightActionType = 'selectTarget' | 'none';
 export interface Role {
     id: string;
     name: string;
-    icon: string; // emoji or asset path
+    icon: string; // emoji or asset path (renamed to iconEmoji in role-types, but keeping icon here for compatibility or mapping)
     description: string;
-    nightActionType: NightActionType;
-    // order removed as it is scenario dependent
+    nightActionType: NightActionType; // Keeping for compatibility
+    team: 'villager' | 'werewolf' | 'vampire' | 'neutral'; // Added
+    skills?: {
+        nightAction?: {
+            type: string; // Simplified for now
+            frequency?: string;
+        };
+        passive?: any;
+    }; // Partially matching role-types structure
 }
 
 // ============================================
@@ -83,6 +90,7 @@ export interface NightAction {
     roleId: string;
     targetPlayerId: string | null; // null if no target selected or action skipped
     timestamp: number;
+    actionType?: string; // e.g. 'heal', 'kill' for roles with multiple options
 }
 
 // ============================================
@@ -137,9 +145,10 @@ export interface GameState {
     // Actions
     initializeGame: (mode: GameMode, scenarioId: string, playerData: Array<{ name: string; color: string }>) => void;
     assignRole: (playerId: string, roleId: string) => void;
-    recordNightAction: (roleId: string, targetPlayerId: string | null) => void;
+    recordNightAction: (roleId: string, targetPlayerId: string | null, actionType?: string) => void;
     advanceToDay: () => void;
     lynchPlayer: (playerId: string) => void;
+    processNightDeaths: (playerIds: string[]) => void;
     advanceToNight: () => void;
     addLogEntry: (entry: Omit<MatchLogEntry, 'id' | 'timestamp' | 'phase'>) => void;
 

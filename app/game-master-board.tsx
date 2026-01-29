@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -9,6 +10,7 @@ import {
   Platform,
   Alert,
   Pressable,
+  BackHandler,
 } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { theme } from '../src/styles/theme';
@@ -21,6 +23,9 @@ import { DaySubPhase, NightOrderDefinition } from '../src/types';
 import { NightAction, SkillType } from '../assets/role-types';
 import { SwipeableCardStack } from '../src/components/SwipeableCardStack';
 import { NightOrderEditor } from '../src/components/NightOrderEditor';
+import { MorningReportModal } from '../src/components/MorningReportModal';
+import { resolveNightEvents } from '../src/engine/NightResolution';
+
 
 // Skill type display info
 const SKILL_DISPLAY: Record<string, { icon: string; name: string; verb: string }> = {
@@ -52,12 +57,15 @@ export default function GameMasterBoardScreen() {
     availableScenarios,
     recordNightAction,
     advanceToDay,
+    processNightDeaths,
     lynchPlayer,
     advanceToNight,
     assignRole,
     clearGame,
     initializeGame,
     updateNightOrder,
+    addCustomScenario,
+    deleteCustomScenario,
   } = useGameStore();
 
   const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
@@ -87,6 +95,12 @@ export default function GameMasterBoardScreen() {
   // Skill Modal States
   const [showSkillModal, setShowSkillModal] = useState(false);
   const [skillTargets, setSkillTargets] = useState<string[]>([]);
+  const [activeActionType, setActiveActionType] = useState<string | undefined>(undefined);
+  
+  // Morning Report State
+  const [morningReportVisible, setMorningReportVisible] = useState(false);
+  const [morningMessages, setMorningMessages] = useState<string[]>([]);
+  const [pendingDeadIds, setPendingDeadIds] = useState<string[]>([]);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const viewRoleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -211,9 +225,11 @@ export default function GameMasterBoardScreen() {
   };
 
   // Skill Modal Handlers
-  const handleOpenSkillModal = () => {
+  const handleOpenSkillModal = (actionType?: string) => {
     const nightAction = getCurrentNightAction();
     if (!nightAction) return;
+    
+    setActiveActionType(actionType);
     setSkillTargets([]);
     setShowSkillModal(true);
   };
@@ -237,20 +253,61 @@ export default function GameMasterBoardScreen() {
     const nightAction = getCurrentNightAction();
     if (!currentRole || !nightAction) return;
     
+    // For dual actions (Witch), we don't strictly enforce target count in the generic check if we are handling sub-actions
+    // But basic target count check is good.
     const targetCount = nightAction.targetCount || 1;
-    if (skillTargets.length < targetCount) {
-      Alert.alert('Thiếu mục tiêu', `Cần chọn ${targetCount} mục tiêu.`);
-      return;
+    
+    // Safety check for target selection
+    if (skillTargets.length < 1 && targetCount > 0) { 
+       // Note: This logic might need refinement if action allows skipping. 
+       // But assuming if modal is open and confirmed, a selection is expected unless "No Target" is an option.
+       Alert.alert('Thiếu mục tiêu', `Cần chọn mục tiêu.`);
+       return;
     }
     
-    recordNightAction(currentRole.id, skillTargets[0] || null);
-    setSelectedTargetId(skillTargets[0] || null);
+    recordNightAction(currentRole.id, skillTargets[0] || null, activeActionType);
+    
+    // Update local display state if needed, though we should likely read from session logs/actions for dual roles
+    // Keeping simple selectedTargetId for single-action roles compatibility
+    if (!activeActionType) {
+        setSelectedTargetId(skillTargets[0] || null);
+    }
     
     setShowSkillModal(false);
     setSkillTargets([]);
+    setActiveActionType(undefined);
   };
 
   // --- NAVIGATION HANDLERS ---
+  
+  const handleNightEnd = () => {
+     // Prepare the report but do not execute changes yet
+     const results = resolveNightEvents(
+         session.nightActions,
+         session.players,
+         availableRoles,
+         session.players.filter(p => !p.isAlive).map(p => p.id)
+     );
+     
+     setMorningMessages(results.messages);
+     setPendingDeadIds(results.deadPlayerIds);
+     setMorningReportVisible(true);
+  };
+
+  const handleConfirmMorningReport = () => {
+     // Process deaths
+     if (pendingDeadIds.length > 0) {
+         processNightDeaths(pendingDeadIds);
+     }
+     
+     setMorningReportVisible(false);
+     
+     // Transition to Day
+     advanceToDay();
+     setCurrentRoleIndex(0);
+     setSelectedTargetId(null);
+     setDaySubPhase('SUNRISE');
+  };
 
   const handleNextRole = useCallback(() => {
     if (isNightPhase) {
@@ -268,7 +325,7 @@ export default function GameMasterBoardScreen() {
       }
 
       if (currentRole) {
-        recordNightAction(currentRole.id, selectedTargetId);
+        recordNightAction(currentRole.id, selectedTargetId, activeActionType);
       }
       
       if (currentRoleIndex < nightSequence.length - 1) {
@@ -302,10 +359,7 @@ export default function GameMasterBoardScreen() {
                   [{ 
                     text: 'OK', 
                     onPress: () => {
-                      advanceToDay();
-                      setCurrentRoleIndex(0);
-                      setSelectedTargetId(null);
-                      setDaySubPhase('SUNRISE');
+                      handleNightEnd();
                     }
                   }]
                 );
@@ -323,10 +377,8 @@ export default function GameMasterBoardScreen() {
           }
         }
 
-        advanceToDay();
-        setCurrentRoleIndex(0);
-        setSelectedTargetId(null);
-        setDaySubPhase('SUNRISE');
+        // Instead of directly advancing, show report
+        handleNightEnd();
       }
     }
   }, [
@@ -334,6 +386,7 @@ export default function GameMasterBoardScreen() {
     nightSequence.length, 
     currentRole, 
     selectedTargetId, 
+    activeActionType,
     isNightPhase, 
     shouldShowRoleAssignment, 
     isNight1, 
@@ -342,7 +395,7 @@ export default function GameMasterBoardScreen() {
     scenario,
     availableRoles,
     assignRole, 
-    advanceToDay, 
+    handleNightEnd, 
     recordNightAction
   ]);
 
@@ -601,11 +654,13 @@ export default function GameMasterBoardScreen() {
                   <Text style={styles.skillName}>{skillInfo.name}</Text>
                   <Text style={styles.skillFrequency}>{getFrequencyText(nightAction?.frequency)}</Text>
                 </View>
-                <View style={styles.skillTargetCount}>
-                  <Text style={styles.skillTargetCountText}>
-                    {nightAction?.targetCount || 1} mục tiêu
-                  </Text>
-                </View>
+                {!isAssigned && ( // Only show target count if generic, or maybe hide for dual
+                    <View style={styles.skillTargetCount}>
+                      <Text style={styles.skillTargetCountText}>
+                        {nightAction?.targetCount || 1} mục tiêu
+                      </Text>
+                    </View>
+                )}
               </View>
               
               {nightAction?.restrictions && nightAction.restrictions.length > 0 && (
@@ -614,25 +669,80 @@ export default function GameMasterBoardScreen() {
                 </Text>
               )}
               
-              {selectedTargetId && (
-                <View style={styles.selectedTargetDisplay}>
-                  <Text style={styles.selectedTargetLabel}>Đã chọn:</Text>
-                  <Text style={styles.selectedTargetName}>
-                    {alivePlayers.find(p => p.id === selectedTargetId)?.name || 'Không xác định'}
-                  </Text>
-                </View>
+              {nightAction?.type === 'dual' ? (
+                  // Witch Dual UI
+                  <View style={{marginTop: 16, gap: 12}}>
+                      {/* HEAL ACTION */}
+                      <View style={styles.dualActionRow}>
+                          <View style={{flex: 1}}>
+                             <Text style={styles.dualActionTitle}>💊 Cứu người</Text>
+                             <Text style={styles.dualActionStatus}>
+                                {(() => {
+                                   const healAction = session.nightActions.find(a => 
+                                      a.roleId === role.id && 
+                                      a.actionType === 'heal' && 
+                                      Math.abs(a.timestamp - Date.now()) < 600000 // Simple heuristic for current night actions or filter by phase logic if better available
+                                      // Actually gameStore.nightActions is reset every night. So just filtering by roleId/actionType is enough.
+                                   );
+                                   if (!healAction) return 'Chưa dùng';
+                                   const target = session.players.find(p => p.id === healAction.targetPlayerId);
+                                   return target ? `Đã cứu: ${target.name}` : 'Đã bỏ qua';
+                                })()}
+                             </Text>
+                          </View>
+                          <TouchableOpacity 
+                             style={[styles.smallActionBtn, {backgroundColor: '#10b981'}]}
+                             onPress={() => handleOpenSkillModal('heal')}
+                          >
+                             <Text style={styles.smallActionBtnText}>Chọn</Text>
+                          </TouchableOpacity>
+                      </View>
+
+                      {/* KILL ACTION */}
+                      <View style={styles.dualActionRow}>
+                          <View style={{flex: 1}}>
+                             <Text style={styles.dualActionTitle}>☠️ Giết người</Text>
+                             <Text style={styles.dualActionStatus}>
+                                {(() => {
+                                   const killAction = session.nightActions.find(a => a.roleId === role.id && a.actionType === 'kill');
+                                   if (!killAction) return 'Chưa dùng';
+                                   const target = session.players.find(p => p.id === killAction.targetPlayerId);
+                                   return target ? `Đã giết: ${target.name}` : 'Đã bỏ qua';
+                                })()}
+                             </Text>
+                          </View>
+                          <TouchableOpacity 
+                             style={[styles.smallActionBtn, {backgroundColor: '#ef4444'}]}
+                             onPress={() => handleOpenSkillModal('kill')}
+                          >
+                             <Text style={styles.smallActionBtnText}>Chọn</Text>
+                          </TouchableOpacity>
+                      </View>
+                  </View>
+              ) : (
+                  // Standard Single Action UI
+                  <>
+                      {selectedTargetId && (
+                        <View style={styles.selectedTargetDisplay}>
+                          <Text style={styles.selectedTargetLabel}>Đã chọn:</Text>
+                          <Text style={styles.selectedTargetName}>
+                            {alivePlayers.find(p => p.id === selectedTargetId)?.name || 'Không xác định'}
+                          </Text>
+                        </View>
+                      )}
+                      
+                      <TouchableOpacity 
+                        style={[styles.skillActionBtn, selectedTargetId && styles.skillActionBtnDone]}
+                        onPress={() => handleOpenSkillModal()}
+                      >
+                        <Text style={styles.skillActionBtnText}>
+                          {selectedTargetId 
+                            ? `✓ Đã ${skillInfo.verb}` 
+                            : `${skillInfo.icon} Chọn để ${skillInfo.verb}`}
+                        </Text>
+                      </TouchableOpacity>
+                  </>
               )}
-              
-              <TouchableOpacity 
-                style={[styles.skillActionBtn, selectedTargetId && styles.skillActionBtnDone]}
-                onPress={handleOpenSkillModal}
-              >
-                <Text style={styles.skillActionBtnText}>
-                  {selectedTargetId 
-                    ? `✓ Đã ${skillInfo.verb}` 
-                    : `${skillInfo.icon} Chọn để ${skillInfo.verb}`}
-                </Text>
-              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.lockedSkillSection}>
@@ -999,6 +1109,13 @@ export default function GameMasterBoardScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* MORNING REPORT MODAL */}
+      <MorningReportModal 
+         visible={morningReportVisible}
+         onClose={handleConfirmMorningReport}
+         messages={morningMessages}
+      />
 
       {/* ROLE ASSIGNMENT MODAL (Night 1 - Physical Card) */}
       <Modal visible={showRoleAssignModal} animationType="slide" transparent onRequestClose={() => setShowRoleAssignModal(false)}>
@@ -1367,6 +1484,38 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   
+  // DUAL ACTION STYLES
+  dualActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#374151',
+    padding: 12,
+    borderRadius: 12,
+    justifyContent: 'space-between',
+  },
+  dualActionTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  dualActionStatus: {
+    color: '#9CA3AF',
+    fontSize: 14,
+  },
+  smallActionBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  smallActionBtnText: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+
   // ACTION BUTTONS
   actionButtonPrimary: {
     flex: 1,

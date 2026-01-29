@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameState, GameSession, GameMode, Player, MatchLogEntry, Role, Scenario, NightOrderDefinition, ScenarioRole } from '../types';
+import { GameState, GameSession, GameMode, Player, MatchLogEntry, Role, Scenario, NightOrderDefinition, ScenarioRole, NightAction } from '../types';
 import { loadRoles, loadScenarios, getScenarioById } from '../utils/assetLoader';
 import { storage } from '../utils/storage';
 import { database } from '../utils/database';
@@ -113,14 +113,15 @@ export const useGameStore = create<GameState>((set, get) => ({
     },
 
     // Record night action
-    recordNightAction: (roleId: string, targetPlayerId: string | null) => {
+    recordNightAction: (roleId: string, targetPlayerId: string | null, actionType?: string) => {
         const { session } = get();
         if (!session) return;
 
-        const action = {
+        const action: NightAction = {
             roleId,
             targetPlayerId,
             timestamp: Date.now(),
+            actionType,
         };
 
         const updatedActions = [...session.nightActions, action];
@@ -139,14 +140,19 @@ export const useGameStore = create<GameState>((set, get) => ({
             ? session.players.find((p) => p.id === targetPlayerId)
             : null;
 
+        let actionVerb = 'đã chọn';
+        if (actionType === 'kill') actionVerb = 'đã chọn giết';
+        else if (actionType === 'heal') actionVerb = 'đã chọn cứu';
+        else if (actionType === 'protect') actionVerb = 'đã bảo vệ';
+
         const message = target
-            ? `${role?.name} đã chọn ${target.name}`
-            : `${role?.name} đã bỏ qua`;
+            ? `${role?.name} ${actionVerb} ${target.name}`
+            : `${role?.name} đã bỏ qua` + (actionType ? ` (${actionType})` : '');
 
         get().addLogEntry({
             type: 'ROLE_ACTION',
             message,
-            metadata: { roleId, targetPlayerId },
+            metadata: { roleId, targetPlayerId, actionType },
         });
 
         get().saveGame();
@@ -199,6 +205,38 @@ export const useGameStore = create<GameState>((set, get) => ({
             type: 'LYNCH',
             message: `${player.name} đã bị treo cổ`,
             metadata: { playerId },
+        });
+
+        get().saveGame();
+    },
+
+    // Process night deaths
+    processNightDeaths: (playerIds: string[]) => {
+        const { session } = get();
+        if (!session || playerIds.length === 0) return;
+
+        const updatedPlayers = session.players.map((p) =>
+            playerIds.includes(p.id) ? { ...p, isAlive: false } : p
+        );
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                updatedAt: Date.now(),
+            },
+        });
+
+        // Add log for each death
+        playerIds.forEach(id => {
+            const player = session.players.find(p => p.id === id);
+            if (player) {
+                get().addLogEntry({
+                    type: 'DEATH',
+                    message: `${player.name} đã chết vào ban đêm`,
+                    metadata: { playerId: id },
+                });
+            }
         });
 
         get().saveGame();
