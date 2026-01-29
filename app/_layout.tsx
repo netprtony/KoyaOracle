@@ -4,9 +4,29 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useGameStore } from '../src/store/gameStore';
 import { database } from '../src/utils/database';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+
+import { Text, TextInput } from 'react-native';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
+
+// @ts-ignore
+if (Text.defaultProps == null) Text.defaultProps = {};
+// @ts-ignore
+Text.defaultProps.style = { fontFamily: 'TNH-Xuong' };
+
+// @ts-ignore
+if (TextInput.defaultProps == null) TextInput.defaultProps = {};
+// @ts-ignore
+TextInput.defaultProps.style = { fontFamily: 'TNH-Xuong' };
 
 export default function RootLayout() {
   const loadAssets = useGameStore((state) => state.loadAssets);
+  const [fontsLoaded] = useFonts({
+    'TNH-Xuong': require('../assets/fonts/TNH-Xuong.otf'),
+  });
 
   useEffect(() => {
     // Initialize database and load assets on app startup
@@ -23,6 +43,16 @@ export default function RootLayout() {
     initialize();
   }, []);
 
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" />
@@ -34,6 +64,8 @@ export default function RootLayout() {
           headerTintColor: '#ffffff',
           headerTitleStyle: {
             fontWeight: 'bold',
+            fontFamily: 'TNH-Xuong',
+            fontSize: 24,
           },
           contentStyle: {
             backgroundColor: '#0a0a0a',

@@ -39,6 +39,10 @@ export const theme = {
         xxl: 32,
     },
     minTapTarget: 48,
+    fonts: {
+        regular: 'TNH-Xuong',
+        bold: 'TNH-Xuong', // Assuming only one weight provided for now
+    },
 };
 
 export type Theme = typeof theme;

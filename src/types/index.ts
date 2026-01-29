@@ -40,7 +40,12 @@ export interface Scenario {
     name: string;
     playerCount: number;
     roles: ScenarioRole[];
-    nightOrder: string[]; // List of role IDs in order
+    nightOrder: NightOrderDefinition; // Changed from string[]
+}
+
+export interface NightOrderDefinition {
+    firstNight: string[];
+    otherNights: string[];
 }
 
 // ============================================
@@ -111,6 +116,7 @@ export interface GameSession {
     players: Player[];
     currentPhase: Phase;
     matchLog: MatchLogEntry[];
+    nightOrder?: NightOrderDefinition; // Optional override for this session
     nightActions: NightAction[]; // actions for current night
     createdAt: number;
     updatedAt: number;
@@ -148,4 +154,5 @@ export interface GameState {
     // Custom Scenarios
     addCustomScenario: (name: string, roles: ScenarioRole[]) => Promise<void>;
     deleteCustomScenario: (id: string) => Promise<void>;
+    updateNightOrder: (order: NightOrderDefinition) => void;
 }

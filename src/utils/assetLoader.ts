@@ -89,7 +89,10 @@ export function loadScenarios(): Scenario[] {
             name: `Kịch bản ${raw.kich_ban} (${raw.so_nguoi_choi} người)`,
             playerCount: raw.so_nguoi_choi,
             roles,
-            nightOrder
+            nightOrder: {
+                firstNight: raw.thu_tu_goi.dem_1 || [],
+                otherNights: raw.thu_tu_goi.dem_thuong || []
+            }
         };
     });
 }

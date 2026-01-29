@@ -25,6 +25,7 @@ interface CardData {
   icon: string;
   name: string;
   content: React.ReactNode;
+  onLongPress?: () => void;
 }
 
 interface SwipeableCardStackProps {
@@ -48,11 +49,15 @@ export const SwipeableCardStack: React.FC<SwipeableCardStackProps> = ({
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
 
-  const handleSwipeComplete = (direction: 'left' | 'right') => {
-    'worklet';
+  // Reset position when index changes (or component mounts)
+  React.useEffect(() => {
     translateX.value = 0;
     translateY.value = 0;
     scale.value = 1;
+  }, [currentIndex]);
+
+  const handleSwipeComplete = (direction: 'left' | 'right') => {
+    'worklet';
     
     if (direction === 'left' && onSwipeLeft) {
       runOnJS(onSwipeLeft)();
@@ -62,7 +67,7 @@ export const SwipeableCardStack: React.FC<SwipeableCardStackProps> = ({
   };
 
   const panGesture = Gesture.Pan()
-    .activeOffsetX([-15, 15])
+    .activeOffsetX([-5, 5]) // Reduced threshold for responsiveness
     .onUpdate((event) => {
       // Limit swipe based on permissions
       if (!canSwipeLeft && event.translationX < 0) {
@@ -129,6 +134,12 @@ export const SwipeableCardStack: React.FC<SwipeableCardStackProps> = ({
       }
     });
 
+
+
+  // Composed gesture
+  // Using Pan only to ensure Swipe works flawlessly. Long press can be added back if needed, or handled via button.
+  const composedGesture = panGesture;
+
   // Render cards in stack (show current + next 2)
   const visibleCards = [];
   for (let i = 0; i < Math.min(3, cards.length - currentIndex); i++) {
@@ -148,7 +159,7 @@ export const SwipeableCardStack: React.FC<SwipeableCardStackProps> = ({
         translateX={isTopCard ? translateX : undefined}
         translateY={isTopCard ? translateY : undefined}
         scale={isTopCard ? scale : undefined}
-        gesture={isTopCard ? panGesture : undefined}
+        gesture={isTopCard ? composedGesture : undefined}
       />
     );
   }

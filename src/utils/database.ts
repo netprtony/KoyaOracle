@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
-import { GameSession, Player, MatchLogEntry, Phase } from '../types';
+import { GameSession, Player, MatchLogEntry, Phase, NightOrderDefinition } from '../types';
 
 // Database name
 const DATABASE_NAME = 'werewolf_gm.db';
@@ -345,7 +345,7 @@ class DatabaseService {
     /**
      * Save a custom scenario
      */
-    async saveScenario(id: string, name: string, playerCount: number, roles: any[], nightOrder: string[]): Promise<void> {
+    async saveScenario(id: string, name: string, playerCount: number, roles: any[], nightOrder: NightOrderDefinition): Promise<void> {
         if (!this.db) return;
 
         try {
@@ -380,7 +380,7 @@ class DatabaseService {
     /**
      * Get all custom scenarios
      */
-    async getCustomScenarios(): Promise<{ id: string; name: string; playerCount: number; roles: any[]; nightOrder: string[] }[]> {
+    async getCustomScenarios(): Promise<{ id: string; name: string; playerCount: number; roles: any[]; nightOrder: NightOrderDefinition }[]> {
         if (!this.db) return [];
 
         const result = await this.db.getAllAsync<{
@@ -396,7 +396,13 @@ class DatabaseService {
             name: row.name,
             playerCount: row.player_count,
             roles: JSON.parse(row.roles_json),
-            nightOrder: JSON.parse(row.night_order_json),
+            nightOrder: (() => {
+                const parsed = JSON.parse(row.night_order_json);
+                if (Array.isArray(parsed)) {
+                    return { firstNight: parsed, otherNights: parsed };
+                }
+                return parsed;
+            })(),
         }));
     }
 

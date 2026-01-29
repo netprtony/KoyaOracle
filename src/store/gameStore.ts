@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameState, GameSession, GameMode, Player, MatchLogEntry, Role, Scenario } from '../types';
+import { GameState, GameSession, GameMode, Player, MatchLogEntry, Role, Scenario, NightOrderDefinition, ScenarioRole } from '../types';
 import { loadRoles, loadScenarios, getScenarioById } from '../utils/assetLoader';
 import { storage } from '../utils/storage';
 import { database } from '../utils/database';
@@ -278,7 +278,12 @@ export const useGameStore = create<GameState>((set, get) => ({
 
         // Simple night order: just list all role IDs. 
         // The engine RoleManager handles the actual priority execution order.
-        const nightOrder = roles.map(r => r.roleId);
+        // Default to same order for both nights for now
+        const roleIds = roles.map(r => r.roleId);
+        const nightOrder = {
+            firstNight: roleIds,
+            otherNights: roleIds
+        };
 
         const newScenario: Scenario = {
             id,
@@ -314,5 +319,20 @@ export const useGameStore = create<GameState>((set, get) => ({
         } catch (error) {
             console.error('Failed to delete custom scenario:', error);
         }
+    },
+
+    // Update night order for current session
+    updateNightOrder: (order: NightOrderDefinition) => {
+        const { session } = get();
+        if (!session) return;
+
+        set({
+            session: {
+                ...session,
+                nightOrder: order,
+                updatedAt: Date.now(),
+            }
+        });
+        get().saveGame();
     },
 }));

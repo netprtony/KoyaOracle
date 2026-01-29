@@ -96,9 +96,14 @@ export default function PlayerSelectionScreen() {
 
     initializeGame(params.mode, params.scenarioId, selectedPlayers);
 
-    // Navigate directly to game-master-board for both modes
-    // Role assignment is now integrated into game-master-board for Physical Card mode
-    router.push('/game-master-board');
+    // Navigate to order-setup to customize night sequence
+    router.push({
+      pathname: '/order-setup',
+      params: {
+        mode: params.mode,
+        scenarioId: params.scenarioId
+      }
+    });
   };
 
   const filteredPlayers = dbPlayers.filter(p => 

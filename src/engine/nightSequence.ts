@@ -1,4 +1,4 @@
-import { Role, Scenario, ScenarioRole } from '../types';
+import { Role, Scenario, ScenarioRole, NightOrderDefinition } from '../types';
 
 /**
  * Get the night sequence of roles to call based on scenario
@@ -7,9 +7,26 @@ import { Role, Scenario, ScenarioRole } from '../types';
  */
 export function getNightSequence(
     scenario: Scenario,
-    availableRoles: Role[]
+    availableRoles: Role[],
+    nightNumber: number = 1,
+    sessionOverrideOrder?: NightOrderDefinition
 ): Role[] {
-    // Use the night order defined in the scenario
+    // Determine which order list to use
+    // Priority: Session Override -> Scenario Default
+    const orderDefinition = sessionOverrideOrder || scenario.nightOrder;
+
+    // Choose list based on night number
+    // Legacy support: if nightOrder is an array (shouldn't happen with types, but for safety)
+    let sequenceIds: string[] = [];
+
+    if (Array.isArray(orderDefinition)) {
+        sequenceIds = orderDefinition;
+    } else {
+        sequenceIds = nightNumber === 1
+            ? orderDefinition.firstNight
+            : orderDefinition.otherNights;
+    }
+
     const sequence: Role[] = [];
 
     // Filter roles that are actually in this scenario (quantity > 0)
@@ -19,7 +36,7 @@ export function getNightSequence(
             .map(r => r.roleId)
     );
 
-    scenario.nightOrder.forEach((roleId) => {
+    sequenceIds.forEach((roleId) => {
         if (activeRoleIds.has(roleId)) {
             const role = availableRoles.find((r) => r.id === roleId);
             if (role) {
