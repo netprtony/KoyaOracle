@@ -48,8 +48,13 @@ export function loadRoles(): Role[] {
     return rawRoles.map(raw => ({
         id: raw.id,
         name: raw.name,
-        icon: raw.iconEmoji,
+        iconEmoji: raw.iconEmoji,
+        icon: raw.iconEmoji, // Map for compatibility with UI using .icon
         description: raw.description,
+        team: raw.team as any, // Cast to team type logic if needed or assumption
+        // Note: raw.team is string, Role.team is Enum. Ideally validate.
+        skills: (raw as any).skills || {},
+        winConditions: (raw as any).winConditions || {},
         nightActionType: ACTION_ROLES[raw.id] || 'none',
     }));
 }

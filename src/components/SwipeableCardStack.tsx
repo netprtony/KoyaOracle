@@ -22,8 +22,8 @@ const STACK_SCALE_STEP = 0.04;
 
 interface CardData {
   id: string;
-  icon: string;
-  name: string;
+  icon?: string;
+  name?: string;
   content: React.ReactNode;
   onLongPress?: () => void;
 }

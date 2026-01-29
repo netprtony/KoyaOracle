@@ -1,3 +1,7 @@
+import { Role, NightAction as RoleNightAction, SkillType } from '../../assets/role-types';
+
+export * from '../../assets/role-types';
+
 // ============================================
 // GAME MODES
 // ============================================
@@ -17,21 +21,16 @@ export type NightActionType = 'selectTarget' | 'none';
 // ROLE DEFINITION
 // ============================================
 
-export interface Role {
-    id: string;
-    name: string;
-    icon: string; // emoji or asset path (renamed to iconEmoji in role-types, but keeping icon here for compatibility or mapping)
-    description: string;
-    nightActionType: NightActionType; // Keeping for compatibility
-    team: 'villager' | 'werewolf' | 'vampire' | 'neutral'; // Added
-    skills?: {
-        nightAction?: {
-            type: string; // Simplified for now
-            frequency?: string;
-        };
-        passive?: any;
-    }; // Partially matching role-types structure
-}
+// ============================================
+// ROLE DEFINITION
+// ============================================
+
+// Using Role from assets/role-types
+// If we need to extend it for runtime-specific UI props, we can do it here, but generally we should use the one source.
+// NOTE: role-types Role uses 'iconEmoji', while recent code might have used 'icon'. 
+// We will stick to 'role-types' definition. Consumers should use `iconEmoji`. 
+// If specific UI needs 'icon' (e.g. for asset path), we might need to add it to role-types or alias it.
+// For now, removing local Role definition.
 
 // ============================================
 // SCENARIO DEFINITION
@@ -85,6 +84,35 @@ export interface Phase {
 // ============================================
 // NIGHT ACTION
 // ============================================
+
+// ============================================
+// NIGHT ACTION
+// ============================================
+
+// Extending or using NightAction from role-types.
+// The runtime NightAction record might need 'timestamp' which the static definition doesn't have.
+// Static NightAction in role-types is "Definition of what a role CAN do".
+// Runtime NightAction is "What a role DID".
+// Let's rename the runtime one to avoid confusion or keep it but clarify.
+
+export interface NightActionRecord {
+    roleId: string;
+    targetPlayerId: string | null; // null if no target selected or action skipped
+    timestamp: number;
+    actionType?: string; // e.g. 'heal', 'kill' for roles with multiple options
+}
+
+// Retaining NightAction as alias for legacy support if needed, but preferably swtich to NightActionRecord for logs
+// Actually, let's keep the name `NightAction` unique to the static definition if possible, 
+// OR just override it if the code uses it for records heavily.
+// Code uses `NightAction` heavily for RECORDS (e.g. `recordNightAction`, `session.nightActions`).
+// `role-types.ts` uses `NightAction` for DEFINITION. This IS a conflict.
+// I will rename the local one to `NightActionRecord` but I need to update all usages.
+// OR I alias the import from role-types to `NightActionDefinition`.
+
+// Let's alias the IMPORT. See top of file.
+// `import { NightAction as NightActionDefinition } ...`
+// So `NightAction` here refers to the Record.
 
 export interface NightAction {
     roleId: string;

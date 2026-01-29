@@ -2,50 +2,50 @@
 
 export type Team = 'villager' | 'werewolf' | 'vampire' | 'neutral';
 
-export type SkillType = 
-  | 'protect' 
-  | 'bless' 
-  | 'createLovers' 
-  | 'kill' 
+export type SkillType =
+  | 'protect'
+  | 'bless'
+  | 'createLovers'
+  | 'kill'
   | 'recruit'
-  | 'detectRole' 
-  | 'investigate' 
-  | 'heal' 
-  | 'silence' 
+  | 'detectRole'
+  | 'investigate'
+  | 'heal'
+  | 'silence'
   | 'exile'
-  | 'copyRole' 
-  | 'swapRoles' 
-  | 'gamble' 
+  | 'copyRole'
+  | 'swapRoles'
+  | 'gamble'
   | 'markTargets'
   | 'dual'
   | 'none';
 
-export type SkillFrequency = 
-  | 'everyNight' 
-  | 'oncePerGame' 
-  | 'firstNightOnly' 
+export type SkillFrequency =
+  | 'everyNight'
+  | 'oncePerGame'
+  | 'firstNightOnly'
   | 'conditional';
 
-export type PassiveSkillType = 
-  | 'linkedFate' 
-  | 'transformation' 
+export type PassiveSkillType =
+  | 'linkedFate'
+  | 'transformation'
   | 'revealRole'
-  | 'revenge' 
-  | 'delayedDeath' 
-  | 'surviveExecution' 
+  | 'revenge'
+  | 'delayedDeath'
+  | 'surviveExecution'
   | 'doubleVote'
-  | 'falseIdentity' 
-  | 'explosionOnDeath' 
+  | 'falseIdentity'
+  | 'explosionOnDeath'
   | 'diseaseCarrier'
-  | 'autoKill' 
-  | 'hiddenAllegiance' 
-  | 'enablePower' 
+  | 'autoKill'
+  | 'hiddenAllegiance'
+  | 'enablePower'
   | 'revengeKill';
 
-export type InformationType = 
-  | 'team' 
-  | 'exactRole' 
-  | 'hasSpecialRole' 
+export type InformationType =
+  | 'team'
+  | 'exactRole'
+  | 'hasSpecialRole'
   | 'sameTeam'
   | 'targetOrAdjacentIsWerewolf';
 
@@ -125,12 +125,14 @@ export interface Role {
   description: string;
   team: Team;
   iconEmoji: string;
+  icon?: string; // Legacy/UI mapped property
   skills: Skills;
   winConditions: WinConditions;
   specialRules?: string[];
+  nightActionType?: 'selectTarget' | 'none' | string; // UI helper property
 }
 
-export type RoleId = 
+export type RoleId =
   | 'bao_ve' | 'muc_su' | 'than_tinh_yeu' | 'cap_doi'
   | 'soi' | 'soi_con' | 'soi_don_doc' | 'soi_an_chay' | 'nanh_soi' | 'soi_trum'
   | 'ba_dong' | 'ma_ca_rong' | 'ke_phan_boi' | 'bi_nguyen' | 'nhan_ban'
@@ -141,58 +143,4 @@ export type RoleId =
   | 'ke_chan_doi' | 'tien_tri' | 'tien_tri_tap_su' | 'tien_tri_hao_quang'
   | 'tien_tri_bi_an' | 'nha_ngoai_cam' | 'tham_tu' | 'ke_pha_roi' | 'quan_tro';
 
-// Game state types
-export interface Player {
-  id: string;
-  name: string;
-  role: Role;
-  isAlive: boolean;
-  isProtected: boolean;
-  isSilenced: boolean;
-  isExiled: boolean;
-  isLovers?: boolean;
-  loverPartnerId?: string;
-  isTwin?: boolean;
-  twinPartnerId?: string;
-  isCultMember?: boolean;
-  targetedBy?: string[];
-  markedForDeath?: boolean;
-  deathDelay?: number;
-  originalRole?: Role; // For transformed roles
-  canVote: boolean;
-  voteWeight: number;
-}
 
-export interface GamePhase {
-  type: 'night' | 'day' | 'voting' | 'gameOver';
-  nightNumber?: number;
-  dayNumber?: number;
-}
-
-export interface GameAction {
-  playerId: string;
-  actionType: SkillType | 'vote';
-  targetIds: string[];
-  timestamp: number;
-  success: boolean;
-  result?: any;
-}
-
-export interface GameState {
-  players: Player[];
-  phase: GamePhase;
-  nightActions: GameAction[];
-  dayActions: GameAction[];
-  deadPlayers: Player[];
-  winner?: Team | 'lovers' | 'cult' | 'individual';
-  winnerId?: string; // For individual winners like Kẻ Chán Đời
-}
-
-// Helper functions type definitions
-export interface GameLogic {
-  canPerformAction(player: Player, action: SkillType): boolean;
-  executeNightAction(player: Player, targets: Player[]): GameAction;
-  resolveNightPhase(state: GameState): GameState;
-  checkWinConditions(state: GameState): { winner?: Team | string; players?: string[] };
-  applyPassiveSkills(state: GameState): GameState;
-}

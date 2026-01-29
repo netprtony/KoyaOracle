@@ -83,7 +83,7 @@ export default function GameMasterBoardScreen() {
   
   // View Role Modal States (Night 2+ - Physical Card)
   const [showViewRoleModal, setShowViewRoleModal] = useState(false);
-  const [viewingRole, setViewingRole] = useState<{ name: string; icon: string } | null>(null);
+  const [viewingRole, setViewingRole] = useState<{ name: string; icon?: string } | null>(null);
   
   // Day sub-phase state
   const [daySubPhase, setDaySubPhase] = useState<DaySubPhase>('SUNRISE');
@@ -259,10 +259,33 @@ export default function GameMasterBoardScreen() {
     
     // Safety check for target selection
     if (skillTargets.length < 1 && targetCount > 0) { 
-       // Note: This logic might need refinement if action allows skipping. 
-       // But assuming if modal is open and confirmed, a selection is expected unless "No Target" is an option.
        Alert.alert('Thiếu mục tiêu', `Cần chọn mục tiêu.`);
        return;
+    }
+
+    // Check for 'cannotTargetSamePersonConsecutively' restriction
+    if (nightAction.restrictions?.includes('cannotTargetSamePersonConsecutively')) {
+      const previousNightNumber = session.currentPhase.number - 1;
+      if (previousNightNumber > 0) {
+        const lastNightLog = [...session.matchLog].reverse().find(log => 
+          log.type === 'ROLE_ACTION' &&
+          log.metadata?.roleId === currentRole.id &&
+          log.phase?.number === previousNightNumber &&
+          log.phase?.type === 'NIGHT'
+        );
+
+        if (lastNightLog && lastNightLog.metadata?.targetPlayerId) {
+          const lastTargetId = lastNightLog.metadata.targetPlayerId;
+          if (skillTargets.includes(lastTargetId)) {
+            const lastTargetName = session.players.find(p => p.id === lastTargetId)?.name || 'mục tiêu cũ';
+            Alert.alert(
+              'Hành động không hợp lệ', 
+              `Vai trò này không thể chọn cùng 1 người 2 đêm liên tiếp.\n(Đêm trước đã chọn: ${lastTargetName})`
+            );
+            return;
+          }
+        }
+      }
     }
     
     recordNightAction(currentRole.id, skillTargets[0] || null, activeActionType);
