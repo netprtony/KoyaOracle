@@ -611,6 +611,15 @@ export default function GameMasterBoardScreen() {
     const skillInfo = nightAction ? getSkillDisplay(nightAction.type) : null;
     const hasSkill = nightAction && nightAction.type !== 'none';
     const isAssigned = isRoleFullyAssigned(role.id);
+    const assignedPlayers = getAssignedPlayersForRole(role.id);
+    // 1. Dead State Check
+    // If there are assigned players and ALL of them are dead, interactions are disabled.
+    // Logic: 
+    // - For single-player roles (Seer, Witch): If player is dead -> Disabled.
+    // - For group roles (Werewolves): If ALL wolves are dead -> Disabled (though game likely ends).
+    // - If NO players assigned yet -> Not disabled by death (disabled by assignment check).
+    const areAllAssignedDead = assignedPlayers.length > 0 && assignedPlayers.every(p => !p.isAlive);
+    const deadPlayerNames = assignedPlayers.filter(p => !p.isAlive).map(p => p.name).join(', ');
 
     // styles.cardInner has flex:1 and padding:24.
     
@@ -633,7 +642,7 @@ export default function GameMasterBoardScreen() {
           )}
         </View>
 
-        <View style={styles.cardContent}>
+        <View style={[styles.cardContent, areAllAssignedDead && { opacity: 0.6 }]}>
           <Text style={styles.cardIcon}>{role.icon}
             <Text style={styles.cardTitle}>{role.name}</Text>
             <View style={styles.cardTitleRow}>
@@ -650,6 +659,14 @@ export default function GameMasterBoardScreen() {
             </View>
           </Text>
 
+          {/* DEAD STATUS OVERLAY OR TEXT */}
+          {areAllAssignedDead && (
+             <View style={{marginTop: 10, padding: 8, backgroundColor: '#330000', borderRadius: 8}}>
+                 <Text style={{color: '#ff4444', fontWeight: 'bold', textAlign: 'center'}}>
+                    🚫 ĐÃ CHẾT ({deadPlayerNames})
+                 </Text>
+             </View>
+          )}
 
           {shouldShowRoleAssignment && role && isActive && (
             <TouchableOpacity 
@@ -668,16 +685,23 @@ export default function GameMasterBoardScreen() {
           )}
         </View>
         
-        {isActive && hasSkill && skillInfo ? (
+        {/* If Dead, do not show skill interactions, show Reset/Skip note maybe? 
+            Or just hide and let user swipe. */}
+        {areAllAssignedDead ? (
+            <View style={styles.lockedSkillSection}>
+               <Text style={styles.lockedSkillText}>Không thể thực hiện hành động.</Text>
+            </View>
+        ) : (isActive && hasSkill && skillInfo ? (
           (!shouldShowRoleAssignment || isAssigned) ? (
             <View style={styles.skillSection}>
+              {/* Skill Badge Info */}
               <View style={styles.skillBadge}>
                 <Text style={styles.skillIcon}>{skillInfo.icon}</Text>
                 <View style={styles.skillInfo}>
                   <Text style={styles.skillName}>{skillInfo.name}</Text>
                   <Text style={styles.skillFrequency}>{getFrequencyText(nightAction?.frequency)}</Text>
                 </View>
-                {!isAssigned && ( // Only show target count if generic, or maybe hide for dual
+                {!isAssigned && (
                     <View style={styles.skillTargetCount}>
                       <Text style={styles.skillTargetCountText}>
                         {nightAction?.targetCount || 1} mục tiêu
@@ -695,52 +719,138 @@ export default function GameMasterBoardScreen() {
               {nightAction?.type === 'dual' ? (
                   // Witch Dual UI
                   <View style={{marginTop: 16, gap: 12}}>
-                      {/* HEAL ACTION */}
-                      <View style={styles.dualActionRow}>
-                          <View style={{flex: 1}}>
-                             <Text style={styles.dualActionTitle}>💊 Cứu người</Text>
-                             <Text style={styles.dualActionStatus}>
-                                {(() => {
-                                   const healAction = session.nightActions.find(a => 
-                                      a.roleId === role.id && 
-                                      a.actionType === 'heal' && 
-                                      Math.abs(a.timestamp - Date.now()) < 600000 // Simple heuristic for current night actions or filter by phase logic if better available
-                                      // Actually gameStore.nightActions is reset every night. So just filtering by roleId/actionType is enough.
-                                   );
-                                   if (!healAction) return 'Chưa dùng';
-                                   const target = session.players.find(p => p.id === healAction.targetPlayerId);
-                                   return target ? `Đã cứu: ${target.name}` : 'Đã bỏ qua';
-                                })()}
-                             </Text>
-                          </View>
-                          <TouchableOpacity 
-                             style={[styles.smallActionBtn, {backgroundColor: '#10b981'}]}
-                             onPress={() => handleOpenSkillModal('heal')}
-                          >
-                             <Text style={styles.smallActionBtnText}>Chọn</Text>
-                          </TouchableOpacity>
-                      </View>
+                      {/* PRE-CALCULATE VICTIM FOR WITCH */}
+                      {(() => {
+                           // 2. Witch Logic application
+                           // Run resolution with CURRENT actions to see who is dying
+                           // But exclude Witch's current actions to see the "incoming" state?
+                           // Actually resolveNightEvents handles protection logic.
+                           // We want to know: "Who dies if I (Witch) do nothing?"
+                           
+                           // Filter out Witch actions from the simulation set
+                           const actionsExcludingWitch = session.nightActions.filter(a => a.roleId !== role.id);
+                           const simulation = resolveNightEvents(
+                               actionsExcludingWitch,
+                               session.players,
+                               availableRoles,
+                               session.players.filter(p => !p.isAlive).map(p => p.id)
+                           );
+                           
+                           const potentialVictims = simulation.deadPlayerIds; 
+                           // Note: deadPlayerIds from simulation are IDs.
+                           // If valid victim exists, display name.
+                           
+                           // We only care about victims that the Witch can SAVE.
+                           // Typically this is the Werewolf kill.
+                           // Our resolveNightEvents combines kills. 
+                           // If the Guard protected them, they won't be in deadPlayerIds.
+                           // So this correctly reflects "Who is dead right now".
+                           
+                           const victimName = potentialVictims.length > 0 
+                                ? session.players.filter(p => potentialVictims.includes(p.id)).map(p => p.name).join(', ')
+                                : null;
 
-                      {/* KILL ACTION */}
-                      <View style={styles.dualActionRow}>
-                          <View style={{flex: 1}}>
-                             <Text style={styles.dualActionTitle}>☠️ Giết người</Text>
-                             <Text style={styles.dualActionStatus}>
-                                {(() => {
-                                   const killAction = session.nightActions.find(a => a.roleId === role.id && a.actionType === 'kill');
-                                   if (!killAction) return 'Chưa dùng';
-                                   const target = session.players.find(p => p.id === killAction.targetPlayerId);
-                                   return target ? `Đã giết: ${target.name}` : 'Đã bỏ qua';
-                                })()}
-                             </Text>
-                          </View>
-                          <TouchableOpacity 
-                             style={[styles.smallActionBtn, {backgroundColor: '#ef4444'}]}
-                             onPress={() => handleOpenSkillModal('kill')}
-                          >
-                             <Text style={styles.smallActionBtnText}>Chọn</Text>
-                          </TouchableOpacity>
-                      </View>
+                           return (
+                               <>
+                                   {/* HEAL ACTION */}
+                                   <View style={styles.dualActionRow}>
+                                      <View style={{flex: 1}}>
+                                         <Text style={styles.dualActionTitle}>💊 Cứu người</Text>
+                                         {victimName ? (
+                                             <Text style={{color: '#ef4444', fontWeight: 'bold', fontSize: 13}}>
+                                                 Đang hấp hối: {victimName}
+                                             </Text>
+                                         ) : (
+                                             <Text style={{color: '#10b981', fontSize: 13}}>
+                                                 Không có ai chết
+                                             </Text>
+                                         )}
+                                         <Text style={styles.dualActionStatus}>
+                                            {(() => {
+                                               // Check current night
+                                               const currentAction = session.nightActions.find(a => 
+                                                  a.roleId === role.id && a.actionType === 'heal'
+                                               );
+                                               if (currentAction) {
+                                                   const target = session.players.find(p => p.id === currentAction.targetPlayerId);
+                                                   return target ? `Đã cứu: ${target.name}` : 'Đã bỏ qua';
+                                               }
+                                               
+                                               // Check history
+                                               const historyLog = session.matchLog.find(log => 
+                                                   log.type === 'ROLE_ACTION' && 
+                                                   log.metadata?.roleId === role.id && 
+                                                   log.metadata?.actionType === 'heal'
+                                               );
+                                               if (historyLog) return `Đã dùng (Đêm ${historyLog.phase?.number})`;
+
+                                               return 'Chưa dùng';
+                                            })()}
+                                         </Text>
+                                      </View>
+                                      <TouchableOpacity 
+                                         style={[
+                                             styles.smallActionBtn, 
+                                             {backgroundColor: '#10b981'},
+                                             (!victimName || 
+                                              session.matchLog.some(l => l.metadata?.roleId === role.id && l.metadata?.actionType === 'heal') ||
+                                              session.nightActions.some(a => a.roleId === role.id && a.actionType === 'heal')
+                                             ) && {opacity: 0.5} 
+                                         ]}
+                                         disabled={
+                                             !victimName || 
+                                             session.matchLog.some(l => l.metadata?.roleId === role.id && l.metadata?.actionType === 'heal') ||
+                                             session.nightActions.some(a => a.roleId === role.id && a.actionType === 'heal')
+                                         }
+                                         onPress={() => handleOpenSkillModal('heal')}
+                                      >
+                                         <Text style={styles.smallActionBtnText}>Chọn</Text>
+                                      </TouchableOpacity>
+                                   </View>
+            
+                                   {/* KILL ACTION */}
+                                   <View style={styles.dualActionRow}>
+                                      <View style={{flex: 1}}>
+                                         <Text style={styles.dualActionTitle}>☠️ Giết người</Text>
+                                         <Text style={styles.dualActionStatus}>
+                                            {(() => {
+                                               const currentAction = session.nightActions.find(a => a.roleId === role.id && a.actionType === 'kill');
+                                               if (currentAction) {
+                                                    const target = session.players.find(p => p.id === currentAction.targetPlayerId);
+                                                    return target ? `Đã giết: ${target.name}` : 'Đã bỏ qua';
+                                               }
+
+                                               const historyLog = session.matchLog.find(log => 
+                                                   log.type === 'ROLE_ACTION' && 
+                                                   log.metadata?.roleId === role.id && 
+                                                   log.metadata?.actionType === 'kill'
+                                               );
+                                               if (historyLog) return `Đã dùng (Đêm ${historyLog.phase?.number})`;
+
+                                               return 'Chưa dùng';
+                                            })()}
+                                         </Text>
+                                      </View>
+                                      <TouchableOpacity 
+                                         style={[
+                                             styles.smallActionBtn, 
+                                             {backgroundColor: '#ef4444'},
+                                              (session.matchLog.some(l => l.metadata?.roleId === role.id && l.metadata?.actionType === 'kill') ||
+                                               session.nightActions.some(a => a.roleId === role.id && a.actionType === 'kill')
+                                              ) && {opacity: 0.5}
+                                         ]}
+                                         disabled={
+                                              session.matchLog.some(l => l.metadata?.roleId === role.id && l.metadata?.actionType === 'kill') ||
+                                              session.nightActions.some(a => a.roleId === role.id && a.actionType === 'kill')
+                                         }
+                                         onPress={() => handleOpenSkillModal('kill')}
+                                      >
+                                         <Text style={styles.smallActionBtnText}>Chọn</Text>
+                                      </TouchableOpacity>
+                                   </View>
+                               </>
+                           );
+                      })()}
                   </View>
               ) : (
                   // Standard Single Action UI
@@ -779,7 +889,7 @@ export default function GameMasterBoardScreen() {
             </Text>
             <Text style={styles.swipeHint}>Vuốt để tiếp tục ››</Text>
           </View>
-        ) : null}
+        ) : null)}
       </View>
     );
   };
