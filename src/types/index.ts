@@ -130,7 +130,8 @@ export type LogEntryType =
     | 'ROLE_ACTION'
     | 'DEATH'
     | 'LYNCH'
-    | 'GAME_START';
+    | 'GAME_START'
+    | 'GAME_EVENT';
 
 export interface MatchLogEntry {
     id: string;
@@ -169,14 +170,15 @@ export interface GameState {
     // Available roles and scenarios (loaded from JSON)
     availableRoles: Role[];
     availableScenarios: Scenario[];
+    commandInvoker?: any; // Domain layer CommandInvoker
 
     // Actions
+    loadAssets: () => Promise<void>;
     initializeGame: (mode: GameMode, scenarioId: string, playerData: Array<{ name: string; color: string }>) => void;
-    assignRole: (playerId: string, roleId: string) => void;
+    assignRole: (playerId: string, roleId: string | null) => void;
     recordNightAction: (roleId: string, targetPlayerId: string | null, actionType?: string) => void;
     advanceToDay: () => void;
     lynchPlayer: (playerId: string) => void;
-    processNightDeaths: (playerIds: string[]) => void;
     advanceToNight: () => void;
     addLogEntry: (entry: Omit<MatchLogEntry, 'id' | 'timestamp' | 'phase'>) => void;
 
@@ -184,12 +186,12 @@ export interface GameState {
     saveGame: () => Promise<void>;
     loadGame: () => Promise<void>;
     clearGame: () => void;
-
-    // Asset loading
-    loadAssets: () => Promise<void>;
+    undo?: () => void;
+    redo?: () => void;
 
     // Custom Scenarios
     addCustomScenario: (name: string, roles: ScenarioRole[]) => Promise<void>;
     deleteCustomScenario: (id: string) => Promise<void>;
     updateNightOrder: (order: NightOrderDefinition) => void;
+    processNightDeaths: (playerIds: string[]) => void;
 }

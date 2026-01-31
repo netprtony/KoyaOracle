@@ -3,7 +3,7 @@
  * Manages status effects, relationships, and ability usage
  */
 
-import { Player, Role, Team } from '../../assets/role-types';
+import { Team } from '../../assets/role-types';
 
 export interface EnhancedPlayerState {
     playerId: string;

@@ -10,6 +10,14 @@ import { ActionResolver, GameAction, NightResolutionResult } from './ActionResol
 import { WinConditionChecker, WinResult } from './WinConditionChecker';
 import { PassiveSkillHandler, DeathProcessingResult, PassiveEffect } from './PassiveSkillHandler';
 
+// Domain Layer Imports
+import { CommandInvoker } from '../domain/commands/CommandInvoker';
+import { NightResolver } from '../domain/services/NightResolver';
+import { GameState as DomainGameState } from '../domain/entities/GameState';
+import { Player as DomainPlayer } from '../domain/entities/Player';
+import { PlayerStatus } from '../domain/entities/PlayerStatus';
+import { getCommandFactory } from '../domain/commands/skills/CommandFactory';
+
 export interface GameConfig {
     players: PlayerInput[];
     scenario?: {
@@ -45,11 +53,17 @@ export interface GameState {
 }
 
 export class GameEngine {
+    // Legacy managers (for backward compatibility)
     private roleManager: RoleManager;
     private stateManager: PlayerStateManager;
     private actionResolver: ActionResolver;
     private winChecker: WinConditionChecker;
     private passiveHandler: PassiveSkillHandler;
+
+    // Domain layer (new architecture)
+    private commandInvoker: CommandInvoker;
+    private nightResolver: NightResolver;
+    private domainState: DomainGameState;
 
     private nightNumber: number = 0;
     private phase: 'night' | 'day' | 'gameOver' = 'night';
@@ -63,10 +77,16 @@ export class GameEngine {
         // Initialize players
         this.stateManager.initializePlayers(config.players);
 
-        // Initialize managers
+        // Initialize legacy managers
         this.actionResolver = new ActionResolver(this.stateManager, this.roleManager);
         this.winChecker = new WinConditionChecker(this.stateManager, this.roleManager);
         this.passiveHandler = new PassiveSkillHandler(this.stateManager, this.roleManager);
+
+        // Initialize domain layer
+        this.domainState = this.createInitialDomainState(config.players);
+        this.commandInvoker = new CommandInvoker(this.domainState);
+        const nightOrder = config.scenario?.nightOrder || [];
+        this.nightResolver = new NightResolver(this.commandInvoker, nightOrder);
     }
 
     /**
@@ -382,9 +402,116 @@ export class GameEngine {
     /**
      * Transfer mayor role to successor
      */
-    transferMayor(fromId: string, toId: string): void {
-        this.stateManager.setVoteWeight(fromId, 1);
-        this.stateManager.setVoteWeight(toId, 2);
+    transferMayor(fromPlayerId: string, toPlayerId: string): void {
+        this.stateManager.setVoteWeight(fromPlayerId, 1);
+        this.stateManager.setVoteWeight(toPlayerId, 2);
+    }
+
+    // ============================================
+    // Domain Layer Methods (New Architecture)
+    // ============================================
+
+    /**
+     * Create initial domain state from player inputs
+     */
+    private createInitialDomainState(players: PlayerInput[]): DomainGameState {
+        const domainPlayers = players.map((p, index) => {
+            const role = this.roleManager.getRoleById(p.roleId || '');
+            const team = role?.team || 'villager';
+
+            return new DomainPlayer(
+                p.id,
+                p.name,
+                p.roleId || 'unassigned',
+                team,
+                PlayerStatus.ALIVE,
+                index
+            );
+        });
+
+        return DomainGameState.fromPlayers(domainPlayers);
+    }
+
+    /**
+     * Sync domain state to legacy PlayerStateManager
+     * (for backward compatibility during migration)
+     */
+    private syncToLegacyState(domainState: DomainGameState): void {
+        for (const domainPlayer of domainState.getAllPlayers()) {
+            const legacyState = this.stateManager.getState(domainPlayer.id);
+
+            if (legacyState) {
+                // Update alive status
+                if (!domainPlayer.isAlive && legacyState.isAlive) {
+                    this.stateManager.killPlayer(domainPlayer.id);
+                }
+
+                // Sync protection status
+                if (domainPlayer.isProtected !== legacyState.isProtected) {
+                    this.stateManager.setProtected(domainPlayer.id, domainPlayer.isProtected);
+                }
+
+                // Sync blessed status
+                if (domainPlayer.isBlessed !== legacyState.isBlessed) {
+                    this.stateManager.setBlessed(domainPlayer.id, domainPlayer.isBlessed);
+                }
+            }
+        }
+    }
+
+    /**
+     * Undo last night action (NEW)
+     */
+    undoLastAction(): { success: boolean; message: string } {
+        const result = this.commandInvoker.undo(this.domainState);
+
+        if (result.isSuccess) {
+            this.domainState = result.newState;
+            this.syncToLegacyState(result.newState);
+        }
+
+        return {
+            success: result.isSuccess,
+            message: result.message || (result.isFailure ? 'Undo failed' : '')
+        };
+    }
+
+    /**
+     * Redo last undone action (NEW)
+     */
+    redoLastAction(): { success: boolean; message: string } {
+        const result = this.commandInvoker.redo(this.domainState);
+
+        if (result.isSuccess) {
+            this.domainState = result.newState;
+            this.syncToLegacyState(result.newState);
+        }
+
+        return {
+            success: result.isSuccess,
+            message: result.message || (result.isFailure ? 'Redo failed' : '')
+        };
+    }
+
+    /**
+     * Check if undo is available (NEW)
+     */
+    canUndo(): boolean {
+        return this.commandInvoker.canUndo();
+    }
+
+    /**
+     * Check if redo is available (NEW)
+     */
+    canRedo(): boolean {
+        return this.commandInvoker.canRedo();
+    }
+
+    /**
+     * Get command history (NEW)
+     */
+    getCommandHistory(): readonly any[] {
+        return this.commandInvoker.getHistory();
     }
 }
 

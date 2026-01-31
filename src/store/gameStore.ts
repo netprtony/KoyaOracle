@@ -5,6 +5,8 @@ import { storage } from '../utils/storage';
 import { database } from '../utils/database';
 import { assignRandomRoles } from '../engine/roleAssignment';
 import { createInitialPhase, advanceToDay as advanceToDayPhase, advanceToNight as advanceToNightPhase } from '../engine/phaseController';
+import { CommandInvoker, getCommandFactory } from '../domain';
+import { storePlayersToDomainState, domainStateToStorePlayers } from './storeAdapter';
 
 /**
  * Zustand store for game state management
@@ -14,6 +16,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     session: null,
     availableRoles: [],
     availableScenarios: [],
+
+    // Domain layer integration
+    commandInvoker: new CommandInvoker(),
 
     // Load assets from JSON files and Database
     loadAssets: async () => {
@@ -112,11 +117,12 @@ export const useGameStore = create<GameState>((set, get) => ({
         get().saveGame();
     },
 
-    // Record night action
+    // Record night action (with command pattern integration)
     recordNightAction: (roleId: string, targetPlayerId: string | null, actionType?: string) => {
-        const { session } = get();
+        const { session, commandInvoker } = get();
         if (!session) return;
 
+        // Legacy action recording (for backward compatibility)
         const action: NightAction = {
             roleId,
             targetPlayerId,
@@ -126,13 +132,60 @@ export const useGameStore = create<GameState>((set, get) => ({
 
         const updatedActions = [...session.nightActions, action];
 
-        set({
-            session: {
-                ...session,
-                nightActions: updatedActions,
-                updatedAt: Date.now(),
-            },
-        });
+        // Create command if actionType and target are provided
+        if (actionType && targetPlayerId) {
+            try {
+                const factory = getCommandFactory();
+                const actorPlayer = session.players.find(p => p.roleId === roleId);
+
+                if (actorPlayer) {
+                    const command = factory.createCommandFromRole(
+                        roleId,
+                        actionType,
+                        actorPlayer.id,
+                        [targetPlayerId]
+                    );
+
+                    if (command) {
+                        // Convert to domain state
+                        const domainState = storePlayersToDomainState(
+                            session.players,
+                            session.currentPhase.number
+                        );
+
+                        // Execute command
+                        const result = commandInvoker.execute(command, domainState);
+
+                        if (result.isSuccess) {
+                            // Convert back to store players
+                            const updatedPlayers = domainStateToStorePlayers(result.newState);
+
+                            set({
+                                session: {
+                                    ...session,
+                                    players: updatedPlayers,
+                                    nightActions: updatedActions,
+                                    updatedAt: Date.now(),
+                                },
+                            });
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error executing command:', error);
+            }
+        }
+
+        // Fallback to legacy behavior if command execution failed
+        if (!get().session || get().session?.nightActions.length === updatedActions.length - 1) {
+            set({
+                session: {
+                    ...session,
+                    nightActions: updatedActions,
+                    updatedAt: Date.now(),
+                },
+            });
+        }
 
         // Add log entry
         const role = get().availableRoles.find((r) => r.id === roleId);
@@ -307,6 +360,70 @@ export const useGameStore = create<GameState>((set, get) => ({
     clearGame: () => {
         set({ session: null });
         storage.clearGame();
+    },
+
+    // Undo last command
+    undo: () => {
+        const { session, commandInvoker } = get();
+        if (!session || !commandInvoker) return;
+
+        const domainState = storePlayersToDomainState(
+            session.players,
+            session.currentPhase.number
+        );
+
+        const result = commandInvoker.undo(domainState);
+
+        if (result.isSuccess) {
+            const updatedPlayers = domainStateToStorePlayers(result.newState);
+
+            set({
+                session: {
+                    ...session,
+                    players: updatedPlayers,
+                    updatedAt: Date.now(),
+                },
+            });
+
+            get().addLogEntry({
+                type: 'GAME_EVENT',
+                message: 'Đã hoàn tác hành động',
+            });
+
+            get().saveGame();
+        }
+    },
+
+    // Redo last undone command
+    redo: () => {
+        const { session, commandInvoker } = get();
+        if (!session || !commandInvoker) return;
+
+        const domainState = storePlayersToDomainState(
+            session.players,
+            session.currentPhase.number
+        );
+
+        const result = commandInvoker.redo(domainState);
+
+        if (result.isSuccess) {
+            const updatedPlayers = domainStateToStorePlayers(result.newState);
+
+            set({
+                session: {
+                    ...session,
+                    players: updatedPlayers,
+                    updatedAt: Date.now(),
+                },
+            });
+
+            get().addLogEntry({
+                type: 'GAME_EVENT',
+                message: 'Đã làm lại hành động',
+            });
+
+            get().saveGame();
+        }
     },
 
     // Add a custom scenario

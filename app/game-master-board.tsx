@@ -20,7 +20,7 @@ import { getNightSequence } from '../src/engine/nightSequence';
 import { getPhaseDisplay } from '../src/engine/phaseController';
 import { getRoleManager } from '../src/engine/RoleManager';
 import { DaySubPhase, NightOrderDefinition } from '../src/types';
-import { NightAction, SkillType } from '../assets/role-types';
+import { NightAction } from '../assets/role-types';
 import { SwipeableCardStack } from '../src/components/SwipeableCardStack';
 import { NightOrderEditor } from '../src/components/NightOrderEditor';
 import { MorningReportModal } from '../src/components/MorningReportModal';
@@ -64,8 +64,9 @@ export default function GameMasterBoardScreen() {
     clearGame,
     initializeGame,
     updateNightOrder,
-    addCustomScenario,
-    deleteCustomScenario,
+    undo,
+    redo,
+    commandInvoker,
   } = useGameStore();
 
   const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
@@ -1077,24 +1078,60 @@ export default function GameMasterBoardScreen() {
                  </TouchableOpacity>
               </View>
               
-              <View style={styles.sidebarMenu}>
-                 <TouchableOpacity style={styles.menuItem} onPress={handlePauseGame}>
-                    <Text style={styles.menuItemIcon}>⏸</Text>
-                    <Text style={styles.menuItemText}>Tạm hoãn</Text>
-                 </TouchableOpacity>
-                 <TouchableOpacity style={styles.menuItem} onPress={handleOpenOrderSettings}>
-                    <Text style={styles.menuItemIcon}>⚙️</Text>
-                    <Text style={styles.menuItemText}>Cài đặt thứ tự gọi</Text>
-                 </TouchableOpacity>
-                 <TouchableOpacity style={styles.menuItem} onPress={handleRestartGame}>
-                    <Text style={styles.menuItemIcon}>🔄</Text>
-                    <Text style={styles.menuItemText}>Bắt đầu lại</Text>
-                 </TouchableOpacity>
-                 <TouchableOpacity style={[styles.menuItem, styles.menuItemDestructive]} onPress={handleEndGame}>
-                    <Text style={styles.menuItemIcon}>❌</Text>
-                    <Text style={[styles.menuItemText, styles.textDestructive]}>Kết thúc trò chơi</Text>
-                 </TouchableOpacity>
-              </View>
+               <View style={styles.sidebarMenu}>
+                  <TouchableOpacity style={styles.menuItem} onPress={handlePauseGame}>
+                     <Text style={styles.menuItemIcon}>⏸</Text>
+                     <Text style={styles.menuItemText}>Tạm hoãn</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Undo/Redo Buttons */}
+                  {isNightPhase && (
+                    <>
+                      <TouchableOpacity 
+                        style={[styles.menuItem, !commandInvoker?.canUndo() && styles.menuItemDisabled]} 
+                        onPress={() => {
+                          if (commandInvoker?.canUndo() && undo) {
+                            undo();
+                            setIsSidebarOpen(false);
+                            Alert.alert('Đã hoàn tác', 'Hành động cuối cùng đã được hoàn tác.');
+                          }
+                        }}
+                        disabled={!commandInvoker?.canUndo()}
+                      >
+                         <Text style={styles.menuItemIcon}>↶</Text>
+                         <Text style={styles.menuItemText}>Hoàn tác (Undo)</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[styles.menuItem, !commandInvoker?.canRedo() && styles.menuItemDisabled]} 
+                        onPress={() => {
+                          if (commandInvoker?.canRedo() && redo) {
+                            redo();
+                            setIsSidebarOpen(false);
+                            Alert.alert('Đã làm lại', 'Hành động đã được làm lại.');
+                          }
+                        }}
+                        disabled={!commandInvoker?.canRedo()}
+                      >
+                         <Text style={styles.menuItemIcon}>↷</Text>
+                         <Text style={styles.menuItemText}>Làm lại (Redo)</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  
+                  <TouchableOpacity style={styles.menuItem} onPress={handleOpenOrderSettings}>
+                     <Text style={styles.menuItemIcon}>⚙️</Text>
+                     <Text style={styles.menuItemText}>Cài đặt thứ tự gọi</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={handleRestartGame}>
+                     <Text style={styles.menuItemIcon}>🔄</Text>
+                     <Text style={styles.menuItemText}>Bắt đầu lại</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.menuItem, styles.menuItemDestructive]} onPress={handleEndGame}>
+                     <Text style={styles.menuItemIcon}>❌</Text>
+                     <Text style={[styles.menuItemText, styles.textDestructive]}>Kết thúc trò chơi</Text>
+                  </TouchableOpacity>
+               </View>
 
               <View style={styles.sidebarDivider} />
               
@@ -2210,6 +2247,9 @@ const styles = StyleSheet.create({
   },
   menuItemDestructive: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  menuItemDisabled: {
+    opacity: 0.4,
   },
   textDestructive: {
     color: '#EF4444',
