@@ -24,6 +24,8 @@ import { NightAction } from '../assets/role-types';
 import { SwipeableCardStack } from '../src/components/SwipeableCardStack';
 import { NightOrderEditor } from '../src/components/NightOrderEditor';
 import { MorningReportModal } from '../src/components/MorningReportModal';
+import { SeerInvestigationResultModal } from '../src/components/SeerInvestigationResultModal';
+import { HunterRevengeModal } from '../src/components/HunterRevengeModal';
 import { resolveNightEvents } from '../src/engine/NightResolution';
 
 
@@ -102,6 +104,14 @@ export default function GameMasterBoardScreen() {
   const [morningReportVisible, setMorningReportVisible] = useState(false);
   const [morningMessages, setMorningMessages] = useState<string[]>([]);
   const [pendingDeadIds, setPendingDeadIds] = useState<string[]>([]);
+  
+  // Seer Investigation State
+  const [showSeerResult, setShowSeerResult] = useState(false);
+  const [seerInvestigationTarget, setSeerInvestigationTarget] = useState<{ playerId: string; roleId: string | null } | null>(null);
+  
+  // Hunter Revenge State
+  const [showHunterRevenge, setShowHunterRevenge] = useState(false);
+  const [hunterRevengeData, setHunterRevengeData] = useState<{ hunterId: string; hunterName: string } | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const viewRoleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -291,6 +301,18 @@ export default function GameMasterBoardScreen() {
     
     recordNightAction(currentRole.id, skillTargets[0] || null, activeActionType);
     
+    // Special handling for Seer investigation - show result immediately
+    if (currentRole.id === 'tien_tri' && skillTargets[0] && !activeActionType) {
+      const targetPlayer = session.players.find(p => p.id === skillTargets[0]);
+      if (targetPlayer) {
+        setSeerInvestigationTarget({
+          playerId: targetPlayer.id,
+          roleId: targetPlayer.roleId,
+        });
+        setShowSeerResult(true);
+      }
+    }
+    
     // Update local display state if needed, though we should likely read from session logs/actions for dual roles
     // Keeping simple selectedTargetId for single-action roles compatibility
     if (!activeActionType) {
@@ -322,6 +344,21 @@ export default function GameMasterBoardScreen() {
      // Process deaths
      if (pendingDeadIds.length > 0) {
          processNightDeaths(pendingDeadIds);
+         
+         // Check if hunter died - trigger revenge
+         const hunterPlayer = session.players.find(p => 
+           pendingDeadIds.includes(p.id) && p.roleId === 'tho_san'
+         );
+         
+         if (hunterPlayer) {
+           setHunterRevengeData({
+             hunterId: hunterPlayer.id,
+             hunterName: hunterPlayer.name,
+           });
+           setShowHunterRevenge(true);
+           setMorningReportVisible(false);
+           return; // Don't advance to day yet - wait for hunter revenge
+         }
      }
      
      setMorningReportVisible(false);
@@ -510,8 +547,20 @@ export default function GameMasterBoardScreen() {
 
   const handleConfirmLynch = () => {
     if (lynchTarget) {
+      const lynched = session.players.find(p => p.id === lynchTarget);
       lynchPlayer(lynchTarget);
-      setDaySubPhase('ANNOUNCEMENT');
+      
+      // Check if lynched player is hunter - trigger revenge
+      if (lynched && lynched.roleId === 'tho_san') {
+        setHunterRevengeData({
+          hunterId: lynched.id,
+          hunterName: lynched.name,
+        });
+        setShowHunterRevenge(true);
+        // Don't change phase yet - wait for hunter revenge
+      } else {
+        setDaySubPhase('ANNOUNCEMENT');
+      }
     }
   };
 
@@ -523,7 +572,45 @@ export default function GameMasterBoardScreen() {
   const handleNextNight = () => {
     advanceToNight();
     setCurrentRoleIndex(0);
-    setDaySubPhase('SUNRISE');
+    setSelectedTargetId(null);
+  };
+  
+  // Hunter Revenge Handlers
+  const handleHunterShoot = (targetId: string) => {
+    if (hunterRevengeData) {
+      // Kill the target player
+      processNightDeaths([targetId]);
+      
+      // Close modal and continue game
+      setShowHunterRevenge(false);
+      setHunterRevengeData(null);
+      
+      // Continue to next phase based on current phase
+      if (session.currentPhase.type === 'NIGHT') {
+        advanceToDay();
+        setCurrentRoleIndex(0);
+        setSelectedTargetId(null);
+        setDaySubPhase('SUNRISE');
+      } else {
+        setDaySubPhase('ANNOUNCEMENT');
+      }
+    }
+  };
+  
+  const handleHunterSkip = () => {
+    // Hunter chose not to shoot anyone
+    setShowHunterRevenge(false);
+    setHunterRevengeData(null);
+    
+    // Continue to next phase
+    if (session.currentPhase.type === 'NIGHT') {
+      advanceToDay();
+      setCurrentRoleIndex(0);
+      setSelectedTargetId(null);
+      setDaySubPhase('SUNRISE');
+    } else {
+      setDaySubPhase('ANNOUNCEMENT');
+    }
   };
 
   /* Removed duplicate alivePlayers declaration */
@@ -1229,7 +1316,14 @@ export default function GameMasterBoardScreen() {
                   const targetCount = action?.targetCount || 1;
                   
                   let isDisabled = false;
-                  if (action && !action.canTargetSelf) {
+                  
+                  // Special case for Witch heal - allow self-heal if witch is wolf victim
+                  if (activeActionType === 'heal' && currentRole?.id === 'phu_thuy') {
+                    // Witch can always select anyone alive (including herself) for heal
+                    // The engine will validate if the target is actually the wolf victim
+                    isDisabled = false;
+                  } else if (action && !action.canTargetSelf) {
+                     // Standard logic: prevent self-targeting for other roles
                      const assignedPlayers = getAssignedPlayersForRole(currentRole?.id || '');
                      if (assignedPlayers.some(p => p.id === player.id)) {
                         isDisabled = true;
@@ -1445,8 +1539,36 @@ export default function GameMasterBoardScreen() {
                  />
              )}
          </View>
-      </Modal>
-    </View>
+       </Modal>
+       
+       {/* MORNING REPORT MODAL */}
+       <MorningReportModal
+         visible={morningReportVisible}
+         onClose={handleConfirmMorningReport}
+         messages={morningMessages}
+       />
+       
+       {/* SEER INVESTIGATION RESULT MODAL */}
+       {seerInvestigationTarget && (
+         <SeerInvestigationResultModal
+           visible={showSeerResult}
+           onClose={() => setShowSeerResult(false)}
+           targetPlayer={session.players.find(p => p.id === seerInvestigationTarget.playerId) || null}
+           targetRole={availableRoles.find(r => r.id === seerInvestigationTarget.roleId) || null}
+         />
+       )}
+       
+       {/* HUNTER REVENGE MODAL */}
+       {hunterRevengeData && (
+         <HunterRevengeModal
+           visible={showHunterRevenge}
+           onShoot={handleHunterShoot}
+           onSkip={handleHunterSkip}
+           hunterName={hunterRevengeData.hunterName}
+           alivePlayers={session.players.filter(p => p.isAlive && p.id !== hunterRevengeData.hunterId)}
+         />
+       )}
+     </View>
   );
 }
 

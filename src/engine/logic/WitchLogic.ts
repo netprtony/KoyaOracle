@@ -1,8 +1,21 @@
+/**
+ * WitchLogic - Specialized logic handler for Witch role (Phù Thủy)
+ * 
+ * Manages the Witch's unique abilities:
+ * - Potion of Life (heal): Save a werewolf victim (one-time use)
+ * - Potion of Death (poison): Kill any player (one-time use)
+ * 
+ * This logic is used by the legacy NightResolution system.
+ */
+
 import { PlayerStateManager, EnhancedPlayerState } from '../PlayerStateManager';
 import { NightAction } from '../../types';
 
+/** Role ID for Witch (Phù Thủy) */
 export const WITCH_ROLE_ID = 'phu_thuy';
+/** Action type for healing */
 export const ACTION_HEAL = 'heal';
+/** Action type for poisoning */
 export const ACTION_KILL = 'kill';
 
 /**

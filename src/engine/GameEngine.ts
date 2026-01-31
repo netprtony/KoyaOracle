@@ -16,7 +16,6 @@ import { NightResolver } from '../domain/services/NightResolver';
 import { GameState as DomainGameState } from '../domain/entities/GameState';
 import { Player as DomainPlayer } from '../domain/entities/Player';
 import { PlayerStatus } from '../domain/entities/PlayerStatus';
-import { getCommandFactory } from '../domain/commands/skills/CommandFactory';
 
 export interface GameConfig {
     players: PlayerInput[];

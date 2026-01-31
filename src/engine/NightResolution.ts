@@ -1,22 +1,63 @@
+/**
+ * NightResolution - Legacy night action resolution logic
+ * 
+ * This module provides the original night resolution logic used by the UI.
+ * It processes night actions in a simplified manner and determines deaths.
+ * 
+ * NOTE: This is the LEGACY implementation. The new domain layer has NightResolver
+ * which uses the Command Pattern. This file is kept for backward compatibility
+ * with the existing UI (game-master-board.tsx).
+ * 
+ * @see src/domain/services/NightResolver.ts for the new implementation
+ */
+
 import { NightAction, Player, Role } from '../types';
 import { getRoleManager } from './RoleManager';
 import { PlayerStateManager } from './PlayerStateManager';
 import { WitchLogic, WITCH_ROLE_ID, ACTION_HEAL, ACTION_KILL } from './logic/WitchLogic';
 
+/**
+ * Result of night resolution
+ */
 export interface NightResult {
+    /** IDs of players who died during the night */
     deadPlayerIds: string[];
+    /** Human-readable messages describing what happened */
     messages: string[];
-    actionResults: Record<string, string>; // Maps roleId -> result description
+    /** Maps roleId to result description */
+    actionResults: Record<string, string>;
 }
 
 /**
  * Resolve night actions to determine who died and other effects.
+ * 
+ * This function processes all night actions in a specific order:
+ * 1. Protective roles (Guard)
+ * 2. Werewolf attacks
+ * 3. Witch actions (heal/poison)
+ * 4. Calculate final deaths
+ * 
+ * @param actions - Array of night actions submitted by players
+ * @param players - Current list of all players
+ * @param roles - Available role definitions
+ * @param previousDeadIds - IDs of players who were already dead (for compatibility)
+ * @returns NightResult containing deaths and messages
+ * 
+ * @example
+ * ```typescript
+ * const result = resolveNightEvents(
+ *   [{ roleId: 'soi', targetPlayerId: 'player1' }],
+ *   players,
+ *   roles
+ * );
+ * console.log(result.deadPlayerIds); // ['player1']
+ * ```
  */
 export function resolveNightEvents(
     actions: NightAction[],
     players: Player[],
     roles: Role[],
-    previousDeadIds: string[] = [] // Kept for interface compatibility, but StateManager is better
+    previousDeadIds: string[] = []
 ): NightResult {
     // 1. Initialize State Manager (Ephemeral for this resolution or utilizing global singleton?)
     // Ideally we should use the existing global state manager if available, 
