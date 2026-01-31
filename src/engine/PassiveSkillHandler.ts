@@ -1,6 +1,14 @@
 /**
- * PassiveSkillHandler - Handles passive skill triggers
- * Manages on-death effects, attack reactions, and linked fates
+ * @module PassiveSkillHandler
+ * @description Handles passive skill triggers including death effects and reactions.
+ * 
+ * Manages on-death effects, attack reactions, and linked fate mechanics
+ * like lovers and twins. Coordinates with PlayerStateManager for state
+ * changes and processes complex passive ability chains.
+ *
+ * @see ActionResolver
+ * @see PlayerStateManager
+ * @see RoleManager
  */
 
 import { PassiveSkillType, Team } from '../../assets/role-types';

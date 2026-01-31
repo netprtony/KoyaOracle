@@ -9,13 +9,14 @@ import { BaseCommand } from '../BaseCommand';
 import { GameState } from '../../entities/GameState';
 import { CommandResult } from '../CommandResult';
 import { PlayerStatus } from '../../entities/PlayerStatus';
+import { WITCH_ROLE_ID } from '../../../engine/logic/WitchLogic';
 
 export class WitchHealCommand extends BaseCommand {
     private previousTargetMask?: number;
     private previousActorMask?: number;
 
-    constructor(actorId: string, targetId: string) {
-        super(actorId, 'phu_thuy', [targetId]);
+constructor(actorId: string, targetId: string) {
+        super(actorId, WITCH_ROLE_ID, [targetId]);
     }
 
     get description(): string {

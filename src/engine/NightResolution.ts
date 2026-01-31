@@ -1,14 +1,18 @@
 /**
+ * @legacy
+ * This is the legacy night resolution logic used by the UI layer.
+ * @see NightResolver for the new domain-based implementation.
+ * 
  * NightResolution - Legacy night action resolution logic
  * 
- * This module provides the original night resolution logic used by the UI.
+ * This module provides original night resolution logic used by UI.
  * It processes night actions in a simplified manner and determines deaths.
  * 
- * NOTE: This is the LEGACY implementation. The new domain layer has NightResolver
- * which uses the Command Pattern. This file is kept for backward compatibility
- * with the existing UI (game-master-board.tsx).
+ * NOTE: This is LEGACY implementation. The new domain layer has NightResolver
+ * which uses Command Pattern. This file is kept for backward compatibility
+ * with existing UI (game-master-board.tsx).
  * 
- * @see src/domain/services/NightResolver.ts for the new implementation
+ * @see src/domain/services/NightResolver.ts for new implementation
  */
 
 import { NightAction, Player, Role } from '../types';

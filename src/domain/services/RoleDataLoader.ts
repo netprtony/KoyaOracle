@@ -113,9 +113,5 @@ export function getRoleDataLoader(): RoleDataLoader {
     return loaderInstance;
 }
 
-/**
- * Reset loader instance (for testing)
- */
-export function resetRoleDataLoader(): void {
-    loaderInstance = null;
-}
+// Note: resetRoleDataLoader() removed as it was unused throughout the codebase.
+// The singleton pattern is sufficient for production use.

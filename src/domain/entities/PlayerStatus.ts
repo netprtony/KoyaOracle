@@ -1,9 +1,14 @@
 /**
- * PlayerStatus - Bitwise enum for efficient player state management
+ * @module PlayerStatus
+ * @description Bitwise enum for efficient player state management using flag patterns.
  * 
- * Uses bitwise flags to track multiple status conditions simultaneously.
- * This approach is more memory-efficient and allows for fast status checks
- * using bitwise operations.
+ * Uses bitwise flags to track multiple status conditions simultaneously for
+ * memory efficiency and fast status checks. Forms the basis of the player
+ * state system and enables complex status combinations.
+ *
+ * @see Player
+ * @see GameState
+ * @see NightResolver
  */
 
 export enum PlayerStatus {

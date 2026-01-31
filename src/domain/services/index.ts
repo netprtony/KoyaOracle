@@ -5,4 +5,4 @@
  */
 
 export { NightResolver, NightResolutionResult, NightEffect } from './NightResolver';
-export { RoleDataLoader, Scenario, getRoleDataLoader, resetRoleDataLoader } from './RoleDataLoader';
+export { RoleDataLoader, Scenario, getRoleDataLoader } from './RoleDataLoader';

@@ -1,6 +1,14 @@
 /**
- * ActionResolver - Resolves night actions with priority and conflict handling
- * Coordinates action execution and tracks restrictions
+ * @module ActionResolver
+ * @description Resolves night actions with priority-based execution and conflict handling.
+ * 
+ * Coordinates action execution, validates restrictions, and manages the night
+ * phase resolution workflow. Uses priority system for action ordering and
+ * integrates with PlayerStateManager for state transitions.
+ *
+ * @see NightResolver
+ * @see PlayerStateManager
+ * @see RoleManager
  */
 
 import { SkillType, NightAction as NightActionType, Team } from '../../assets/role-types';

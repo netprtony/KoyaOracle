@@ -1,8 +1,14 @@
 /**
- * GameState - Domain entity representing the complete game state
+ * @module GameState
+ * @description Core game state management using a bitmask-based design.
  * 
- * Immutable state container for all game data.
- * Uses Map for O(1) player lookups.
+ * Immutable state container for all game data using Map for O(1) player lookups.
+ * Serves as the central source of truth for game state and provides methods
+ * for state transitions and queries.
+ *
+ * @see PlayerStatus
+ * @see Player
+ * @see NightResolver
  */
 
 import { Player } from './Player';

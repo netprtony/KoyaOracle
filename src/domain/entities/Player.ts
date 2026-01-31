@@ -1,8 +1,14 @@
 /**
- * Player - Domain entity representing a player in the game
+ * @module Player
+ * @description Domain entity representing a player with bitmask-based status tracking.
  * 
- * Uses bitmask for efficient status tracking and immutable pattern
- * for predictable state management.
+ * Uses immutable pattern for predictable state management and bitmask operations
+ * for efficient status tracking. Central to the domain model and provides
+ * the foundation for all player-related game logic.
+ *
+ * @see PlayerStatus
+ * @see GameState
+ * @see CommandInvoker
  */
 
 import { Team } from '../../../assets/role-types';

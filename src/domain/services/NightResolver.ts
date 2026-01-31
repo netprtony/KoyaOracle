@@ -1,8 +1,15 @@
 /**
- * NightResolver - Service for resolving night phase actions
+ * @module NightResolver
+ * @description Service for resolving night phase actions using command pattern and bitmask logic.
  * 
- * Executes commands in thu_tu_goi order from KichBan.json and calculates
- * deaths using bitmask operations.
+ * Executes commands in thu_tu_goi order from KichBan.json and calculates deaths
+ * using bitmask operations. Handles cascade effects like lovers and twins.
+ * Central to the domain layer's night phase processing.
+ *
+ * @see GameState
+ * @see PlayerStatus
+ * @see CommandInvoker
+ * @see ActionResolver
  */
 
 import { GameState } from '../entities/GameState';
