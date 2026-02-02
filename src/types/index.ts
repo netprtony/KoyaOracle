@@ -65,6 +65,7 @@ export interface Player {
     roleId: string | null; // null if role not yet assigned
     isAlive: boolean;
     position: number; // seating order
+    killedBy?: 'execution' | 'werewolf' | 'poison' | 'hunter' | 'vampire' | 'other'; // Track death cause for win conditions
 }
 
 // ============================================
@@ -194,4 +195,5 @@ export interface GameState {
     deleteCustomScenario: (id: string) => Promise<void>;
     updateNightOrder: (order: NightOrderDefinition) => void;
     processNightDeaths: (playerIds: string[]) => void;
+    processDeathWithCause: (playerId: string, cause: 'execution' | 'werewolf' | 'poison' | 'hunter' | 'vampire' | 'other') => void;
 }

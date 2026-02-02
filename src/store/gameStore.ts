@@ -243,7 +243,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         if (!player) return;
 
         const updatedPlayers = session.players.map((p) =>
-            p.id === playerId ? { ...p, isAlive: false } : p
+            p.id === playerId ? { ...p, isAlive: false, killedBy: 'execution' as const } : p
         );
 
         set({
@@ -263,13 +263,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         get().saveGame();
     },
 
+
     // Process night deaths
     processNightDeaths: (playerIds: string[]) => {
         const { session } = get();
         if (!session || playerIds.length === 0) return;
 
         const updatedPlayers = session.players.map((p) =>
-            playerIds.includes(p.id) ? { ...p, isAlive: false } : p
+            playerIds.includes(p.id) ? { ...p, isAlive: false, killedBy: 'werewolf' as const } : p
         );
 
         set({
@@ -290,6 +291,45 @@ export const useGameStore = create<GameState>((set, get) => ({
                     metadata: { playerId: id },
                 });
             }
+        });
+
+        get().saveGame();
+    },
+
+    // Process death with specific cause (for hunter, poison, vampire, etc.)
+    processDeathWithCause: (playerId: string, cause: 'execution' | 'werewolf' | 'poison' | 'hunter' | 'vampire' | 'other') => {
+        const { session } = get();
+        if (!session) return;
+
+        const player = session.players.find(p => p.id === playerId);
+        if (!player) return;
+
+        const updatedPlayers = session.players.map((p) =>
+            p.id === playerId ? { ...p, isAlive: false, killedBy: cause } : p
+        );
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                updatedAt: Date.now(),
+            },
+        });
+
+        // Add log entry
+        const causeMessages = {
+            execution: 'bị treo cổ',
+            werewolf: 'bị sói cắn',
+            poison: 'bị đầu độc',
+            hunter: 'bị thợ săn bắn',
+            vampire: 'bị ma cà rồng hút máu',
+            other: 'đã chết'
+        };
+
+        get().addLogEntry({
+            type: 'DEATH',
+            message: `${player.name} ${causeMessages[cause]}`,
+            metadata: { playerId, cause },
         });
 
         get().saveGame();

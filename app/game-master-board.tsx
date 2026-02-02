@@ -26,7 +26,9 @@ import { NightOrderEditor } from '../src/components/NightOrderEditor';
 import { MorningReportModal } from '../src/components/MorningReportModal';
 import { SeerInvestigationResultModal } from '../src/components/SeerInvestigationResultModal';
 import { HunterRevengeModal } from '../src/components/HunterRevengeModal';
+import { VictoryModal } from '../src/components/VictoryModal';
 import { resolveNightEvents } from '../src/engine/NightResolution';
+import { WinResult } from '../src/engine/WinConditionChecker';
 
 
 // Skill type display info
@@ -60,6 +62,7 @@ export default function GameMasterBoardScreen() {
     recordNightAction,
     advanceToDay,
     processNightDeaths,
+    processDeathWithCause,
     lynchPlayer,
     advanceToNight,
     assignRole,
@@ -112,6 +115,10 @@ export default function GameMasterBoardScreen() {
   // Hunter Revenge State
   const [showHunterRevenge, setShowHunterRevenge] = useState(false);
   const [hunterRevengeData, setHunterRevengeData] = useState<{ hunterId: string; hunterName: string } | null>(null);
+  
+  // Victory Modal State
+  const [gameWinner, setGameWinner] = useState<WinResult | null>(null);
+  const [showVictoryModal, setShowVictoryModal] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const viewRoleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -209,6 +216,41 @@ export default function GameMasterBoardScreen() {
     return fullRole?.skills?.nightAction;
   };
 
+  const getWolfVictim = () => {
+    // Only valid in Night phase
+    if (session.currentPhase.type !== 'NIGHT') return null;
+    
+    // session.nightActions contains actions for the current night only
+    const wolfAction = [...session.nightActions].reverse().find(a => {
+      const role = availableRoles.find(r => r.id === a.roleId);
+      // Check if role is werewolf team and action is kill (or default kill)
+      return role?.team === 'werewolf' && (a.actionType === 'kill' || !a.actionType);
+    });
+    
+    if (!wolfAction || !wolfAction.targetPlayerId) {
+      return null;
+    }
+
+    const victimId = wolfAction.targetPlayerId;
+
+    // Check if victim is protected by Bodyguard or Priest THIS NIGHT
+    // Note: This logic assumes protection actions happen BEFORE Witch in the night sequence, which is standard.
+    // If Priest/Bodyguard acted, their action is in session.nightActions.
+    const isProtected = session.nightActions.some(a => {
+       // Bodyguard protect
+       if (a.actionType === 'protect' && a.targetPlayerId === victimId) return true;
+       // Priest bless
+       if (a.actionType === 'bless' && a.targetPlayerId === victimId) return true;
+       return false;
+    });
+
+    if (isProtected) {
+       return null; // Victim saved by protection, Witch sees no one dying
+    }
+    
+    return session.players.find(p => p.id === victimId);
+  };
+
   const getSkillDisplay = (actionType: string) => {
     return SKILL_DISPLAY[actionType] || SKILL_DISPLAY.none;
   };
@@ -235,6 +277,97 @@ export default function GameMasterBoardScreen() {
     return texts.join('. ');
   };
 
+  // Win Condition Checking
+  const checkWinCondition = () => {
+    // Get fresh state explicitly to avoid stale data after state updates
+    const currentSession = useGameStore.getState().session;
+    const players = currentSession?.players || session.players;
+    
+    const alivePlayers = players.filter(p => p.isAlive);
+    const allPlayers = players; // Include dead players for individual win checks
+    
+    console.log('🔍 Checking win conditions...');
+    console.log('All players:', allPlayers.map(p => ({ 
+      name: p.name, 
+      alive: p.isAlive, 
+      roleId: p.roleId, 
+      killedBy: p.killedBy 
+    })));
+    
+    // CHECK INDIVIDUAL WINS FIRST (highest priority)
+    // Kẻ Chán Đời - wins if executed
+    for (const player of allPlayers) {
+      if (!player.isAlive && player.killedBy === 'execution') {
+        const role = availableRoles.find(r => r.id === player.roleId);
+        console.log('🎯 Found executed player:', player.name, 'Role:', role?.name, 'Win condition:', role?.winConditions?.primary);
+        
+        // Check for generic condition OR explicit role ID
+        if (role?.winConditions?.primary === 'dieByExecution' || player.roleId === 'ke_chan_doi') {
+          console.log('🎉 KẺ CHÁN ĐỜI WINS!');
+          const winResult: WinResult = {
+            hasWinner: true,
+            winnerType: 'individual',
+            winner: player.roleId || 'ke_chan_doi',
+            winnerPlayerIds: [player.id],
+            winCondition: 'dieByExecution',
+          };
+          setGameWinner(winResult);
+          setShowVictoryModal(true);
+          return;
+        }
+      }
+    }
+    
+    // Get team counts
+    const aliveWerewolves = alivePlayers.filter(p => {
+      const role = availableRoles.find(r => r.id === p.roleId);
+      return role?.team === 'werewolf';
+    });
+    
+    const aliveVillagers = alivePlayers.filter(p => {
+      const role = availableRoles.find(r => r.id === p.roleId);
+      return role?.team === 'villager';
+    });
+    
+    const aliveNeutrals = alivePlayers.filter(p => {
+      const role = availableRoles.find(r => r.id === p.roleId);
+      return role?.team === 'neutral';
+    });
+    
+    // Werewolf win: wolves >= non-wolves
+    const nonWerewolves = alivePlayers.filter(p => {
+      const role = availableRoles.find(r => r.id === p.roleId);
+      return role?.team !== 'werewolf';
+    });
+    
+    if (aliveWerewolves.length > 0 && aliveWerewolves.length >= nonWerewolves.length) {
+      const winResult: WinResult = {
+        hasWinner: true,
+        winnerType: 'team',
+        winner: 'werewolf',
+        winnerPlayerIds: aliveWerewolves.map(p => p.id),
+        winCondition: 'werewolfTeamWins',
+      };
+      setGameWinner(winResult);
+      setShowVictoryModal(true);
+      return;
+    }
+    
+    // Villager win: all werewolves dead
+    if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
+      const winResult: WinResult = {
+        hasWinner: true,
+        winnerType: 'team',
+        winner: 'villager',
+        winnerPlayerIds: aliveVillagers.map(p => p.id),
+        winCondition: 'villagerTeamWins',
+      };
+      setGameWinner(winResult);
+      setShowVictoryModal(true);
+      return;
+    }
+  };
+
   // Skill Modal Handlers
   const handleOpenSkillModal = (actionType?: string) => {
     const nightAction = getCurrentNightAction();
@@ -250,13 +383,13 @@ export default function GameMasterBoardScreen() {
     const targetCount = nightAction?.targetCount || 1;
     
     setSkillTargets(prev => {
-      if (prev.includes(playerId)) {
-        return prev.filter(id => id !== playerId);
-      } else if (prev.length < targetCount) {
-        return [...prev, playerId];
-      } else {
-        return [...prev.slice(1), playerId];
-      }
+      const newTargets = prev.includes(playerId)
+        ? prev.filter(id => id !== playerId)
+        : prev.length < targetCount
+        ? [...prev, playerId]
+        : [...prev.slice(1), playerId];
+      
+      return newTargets;
     });
   };
 
@@ -368,6 +501,9 @@ export default function GameMasterBoardScreen() {
      setCurrentRoleIndex(0);
      setSelectedTargetId(null);
      setDaySubPhase('SUNRISE');
+     
+     // Check win conditions after night deaths
+     checkWinCondition();
   };
 
   const handleNextRole = useCallback(() => {
@@ -560,6 +696,9 @@ export default function GameMasterBoardScreen() {
         // Don't change phase yet - wait for hunter revenge
       } else {
         setDaySubPhase('ANNOUNCEMENT');
+        
+        // Check win conditions after lynching (except when hunter revenge pending)
+        checkWinCondition();
       }
     }
   };
@@ -578,8 +717,8 @@ export default function GameMasterBoardScreen() {
   // Hunter Revenge Handlers
   const handleHunterShoot = (targetId: string) => {
     if (hunterRevengeData) {
-      // Kill the target player
-      processNightDeaths([targetId]);
+      // Kill the target player with hunter shot
+      processDeathWithCause(targetId, 'hunter');
       
       // Close modal and continue game
       setShowHunterRevenge(false);
@@ -594,6 +733,9 @@ export default function GameMasterBoardScreen() {
       } else {
         setDaySubPhase('ANNOUNCEMENT');
       }
+      
+      // Check win conditions after hunter shot
+      checkWinCondition();
     }
   };
   
@@ -611,6 +753,9 @@ export default function GameMasterBoardScreen() {
     } else {
       setDaySubPhase('ANNOUNCEMENT');
     }
+    
+    // Check win conditions even if hunter skipped
+    checkWinCondition();
   };
 
   /* Removed duplicate alivePlayers declaration */
@@ -1172,39 +1317,7 @@ export default function GameMasterBoardScreen() {
                   </TouchableOpacity>
                   
                   {/* Undo/Redo Buttons */}
-                  {isNightPhase && (
-                    <>
-                      <TouchableOpacity 
-                        style={[styles.menuItem, !commandInvoker?.canUndo() && styles.menuItemDisabled]} 
-                        onPress={() => {
-                          if (commandInvoker?.canUndo() && undo) {
-                            undo();
-                            setIsSidebarOpen(false);
-                            Alert.alert('Đã hoàn tác', 'Hành động cuối cùng đã được hoàn tác.');
-                          }
-                        }}
-                        disabled={!commandInvoker?.canUndo()}
-                      >
-                         <Text style={styles.menuItemIcon}>↶</Text>
-                         <Text style={styles.menuItemText}>Hoàn tác (Undo)</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity 
-                        style={[styles.menuItem, !commandInvoker?.canRedo() && styles.menuItemDisabled]} 
-                        onPress={() => {
-                          if (commandInvoker?.canRedo() && redo) {
-                            redo();
-                            setIsSidebarOpen(false);
-                            Alert.alert('Đã làm lại', 'Hành động đã được làm lại.');
-                          }
-                        }}
-                        disabled={!commandInvoker?.canRedo()}
-                      >
-                         <Text style={styles.menuItemIcon}>↷</Text>
-                         <Text style={styles.menuItemText}>Làm lại (Redo)</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
+                  {/* Undo/Redo Buttons Removed */}
                   
                   <TouchableOpacity style={styles.menuItem} onPress={handleOpenOrderSettings}>
                      <Text style={styles.menuItemIcon}>⚙️</Text>
@@ -1307,68 +1420,137 @@ export default function GameMasterBoardScreen() {
             </View>
             
             <ScrollView style={styles.modalBody}>
-              {alivePlayers.length === 0 ? (
-                <Text style={styles.emptyText}>Không còn người chơi sống sót.</Text>
+              {currentRole?.id === 'phu_thuy' && activeActionType === 'heal' ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                   {getWolfVictim() ? (
+                      <>
+                         <Text style={{ fontSize: 20, color: '#9CA3AF', marginBottom: 20, textAlign: 'center' }}>
+                            Người bị sói cắn đêm nay
+                         </Text>
+                         <View style={[styles.playerRow, { 
+                              borderColor: '#EF4444', 
+                              backgroundColor: '#450a0a', 
+                              borderWidth: 2,
+                              width: '100%',
+                              justifyContent: 'center',
+                              marginBottom: 30
+                         }]}>
+                             <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#FCA5A5', textAlign: 'center' }}>
+                                {getWolfVictim()?.name}
+                             </Text>
+                         </View>
+                         <Text style={{ fontSize: 16, color: '#D1D5DB', textAlign: 'center' }}>
+                            Bạn có muốn dùng bình thuốc Cứu không?
+                         </Text>
+                      </>
+                   ) : (
+                      <View style={{ alignItems: 'center' }}>
+                         <Text style={{ fontSize: 50, marginBottom: 20 }}>🛡️</Text>
+                         <Text style={{ fontSize: 20, color: '#10B981', textAlign: 'center' }}>
+                            Đêm nay không có ai bị Sói cắn.
+                         </Text>
+                      </View>
+                   )}
+                </View>
               ) : (
-                alivePlayers.map(player => {
-                  const isSelected = skillTargets.includes(player.id);
-                  const action = getCurrentNightAction();
-                  const targetCount = action?.targetCount || 1;
-                  
-                  let isDisabled = false;
-                  
-                  // Special case for Witch heal - allow self-heal if witch is wolf victim
-                  if (activeActionType === 'heal' && currentRole?.id === 'phu_thuy') {
-                    // Witch can always select anyone alive (including herself) for heal
-                    // The engine will validate if the target is actually the wolf victim
-                    isDisabled = false;
-                  } else if (action && !action.canTargetSelf) {
-                     // Standard logic: prevent self-targeting for other roles
-                     const assignedPlayers = getAssignedPlayersForRole(currentRole?.id || '');
-                     if (assignedPlayers.some(p => p.id === player.id)) {
-                        isDisabled = true;
-                     }
-                  }
-
-                  return (
-                    <TouchableOpacity
-                      key={player.id}
-                      style={[
-                        styles.playerRow,
-                        isSelected && styles.playerRowSelected,
-                        isDisabled && styles.playerRowDisabled,
-                        { borderLeftColor: player.color }
-                      ]}
-                      onPress={() => !isDisabled && handleToggleSkillTarget(player.id)}
-                      disabled={isDisabled}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.playerInfo}>
-                        <Text style={[styles.playerName, isSelected && styles.playerNameSelected, isDisabled && styles.playerNameDisabled]}>
-                          {player.name}
-                        </Text>
-                        {isDisabled && <Text style={styles.playerRoleText}>(Không thể chọn)</Text>}
-                      </View>
-                      <View style={[styles.checkBox, isSelected && styles.checkBoxSelected]}>
-                        {isSelected && <Text style={styles.checkMark}>✓</Text>}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
+                alivePlayers.length === 0 ? (
+                  <Text style={styles.emptyText}>Không còn người chơi sống sót.</Text>
+                ) : (
+                  alivePlayers.map(player => {
+                    const isSelected = skillTargets.includes(player.id);
+                    const action = getCurrentNightAction();
+                    const targetCount = action?.targetCount || 1;
+                    
+                    let isDisabled = false;
+                    
+                    // Standard logic: prevent self-targeting for other roles
+                    // Witch heal uses custom UI so we don't need special check here anymore for list mode
+                    if (action && !action.canTargetSelf) {
+                       const assignedPlayers = getAssignedPlayersForRole(currentRole?.id || '');
+                       if (assignedPlayers.some(p => p.id === player.id)) {
+                          isDisabled = true;
+                       }
+                    }
+  
+                    return (
+                      <TouchableOpacity
+                        key={player.id}
+                        style={[
+                          styles.playerRow,
+                          isSelected && styles.playerRowSelected,
+                          isDisabled && styles.playerRowDisabled,
+                          { borderLeftColor: player.color }
+                        ]}
+                        onPress={() => !isDisabled && handleToggleSkillTarget(player.id)}
+                        disabled={isDisabled}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.playerInfo}>
+                          <Text style={[styles.playerName, isSelected && styles.playerNameSelected, isDisabled && styles.playerNameDisabled]}>
+                            {player.name}
+                          </Text>
+                          {isDisabled && <Text style={styles.playerRoleText}>(Không thể chọn)</Text>}
+                        </View>
+                        <View style={[styles.checkBox, isSelected && styles.checkBoxSelected]}>
+                          {isSelected && <Text style={styles.checkMark}>✓</Text>}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })
+                )
               )}
             </ScrollView>
             
             <View style={styles.modalFooter}>
-              <TouchableOpacity 
-                style={[
-                  styles.saveBtn, 
-                  (skillTargets.length < (getCurrentNightAction()?.targetCount || 1)) && styles.disabledBtn
-                ]}
-                onPress={handleConfirmSkillAction}
-                disabled={skillTargets.length < (getCurrentNightAction()?.targetCount || 1)}
-              >
-                <Text style={styles.saveBtnText}>Xác nhận hành động</Text>
-              </TouchableOpacity>
+              {currentRole?.id === 'phu_thuy' && activeActionType === 'heal' ? (
+                  <View style={{ flexDirection: 'row', gap: 16, width: '100%', justifyContent: 'center' }}>
+                     {/* SKIP BUTTON */}
+                     <TouchableOpacity 
+                       style={[styles.saveBtn, { backgroundColor: '#4B5563', flex: 1 }]}
+                       onPress={() => {
+                          if (currentRole && activeActionType) {
+                              // Record with NO target (Skip)
+                              recordNightAction(currentRole.id, null, activeActionType);
+                              setShowSkillModal(false);
+                              setSkillTargets([]);
+                              setActiveActionType(undefined);
+                          }
+                       }}
+                     >
+                       <Text style={styles.saveBtnText}>Không cứu</Text>
+                     </TouchableOpacity>
+                     
+                     {/* SAVE BUTTON - Only if victim exists */}
+                     {getWolfVictim() && (
+                         <TouchableOpacity 
+                           style={[styles.saveBtn, { backgroundColor: '#10B981', flex: 1 }]}
+                           onPress={() => {
+                              const victim = getWolfVictim();
+                              if (currentRole && activeActionType && victim) {
+                                  // Record decision to heal victim
+                                  recordNightAction(currentRole.id, victim.id, activeActionType);
+                                  setShowSkillModal(false);
+                                  setSkillTargets([]);
+                                  setActiveActionType(undefined);
+                              }
+                           }}
+                         >
+                           <Text style={styles.saveBtnText}>Cứu người</Text>
+                         </TouchableOpacity>
+                     )}
+                  </View>
+              ) : (
+                <TouchableOpacity 
+                  style={[
+                    styles.saveBtn, 
+                    (skillTargets.length < (getCurrentNightAction()?.targetCount || 1)) && styles.disabledBtn
+                  ]}
+                  onPress={handleConfirmSkillAction}
+                  disabled={skillTargets.length < (getCurrentNightAction()?.targetCount || 1)}
+                >
+                  <Text style={styles.saveBtnText}>Xác nhận hành động</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -1566,6 +1748,33 @@ export default function GameMasterBoardScreen() {
            onSkip={handleHunterSkip}
            hunterName={hunterRevengeData.hunterName}
            alivePlayers={session.players.filter(p => p.isAlive && p.id !== hunterRevengeData.hunterId)}
+         />
+       )}
+       
+       {/* VICTORY MODAL */}
+       {showVictoryModal && gameWinner && (
+         <VictoryModal
+           visible={showVictoryModal}
+           winResult={gameWinner}
+           players={session.players}
+           availableRoles={availableRoles}
+           onContinue={() => setShowVictoryModal(false)}
+           onNewGame={() => {
+             setShowVictoryModal(false);
+             setGameWinner(null);
+             clearGame();
+           }}
+           onEndGame={() => {
+             setShowVictoryModal(false);
+             router.dismissAll(); // Ensure we clear stack
+             router.replace('/'); // Go to home
+             
+             // Delay clearing state to prevent render crashes during navigation
+             // and allow component to unmount gracefully
+             setTimeout(() => {
+                clearGame();
+             }, 500);
+           }}
          />
        )}
      </View>
