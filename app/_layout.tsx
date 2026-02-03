@@ -6,30 +6,25 @@ import { useGameStore } from '../src/store/gameStore';
 import { database } from '../src/utils/database';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-
 import { Text, TextInput } from 'react-native';
 
-// Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
-
-// @ts-ignore
-if (Text.defaultProps == null) Text.defaultProps = {};
-// @ts-ignore
-Text.defaultProps.style = { fontFamily: 'TNH-Xuong' };
-
-// @ts-ignore
-if (TextInput.defaultProps == null) TextInput.defaultProps = {};
-// @ts-ignore
-TextInput.defaultProps.style = { fontFamily: 'TNH-Xuong' };
+// 👉 KHÔNG gọi preventAutoHideAsync ngoài component
+// SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const loadAssets = useGameStore((state) => state.loadAssets);
+
   const [fontsLoaded] = useFonts({
     'TNH-Xuong': require('../assets/fonts/TNH-Xuong.otf'),
   });
 
+  // Splash lifecycle
   useEffect(() => {
-    // Initialize database and load assets on app startup
+    SplashScreen.preventAutoHideAsync();
+  }, []);
+
+  // Init database + assets
+  useEffect(() => {
     const initialize = async () => {
       try {
         await database.initialize();
@@ -39,23 +34,38 @@ export default function RootLayout() {
       }
       loadAssets();
     };
-    
-    initialize();
-  }, []);
 
+    initialize();
+  }, [loadAssets]);
+
+  // Hide splash when ready
   useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
 
+  // Font guard
   if (!fontsLoaded) {
     return null;
+  }
+
+  // ⚠️ Set default font an toàn hơn
+  // ⚠️ Set default font an toàn hơn (Casting 'any' để bypass check của TS vì defaultProps bị loại khỏi type def)
+  if ((Text as any).defaultProps == null) (Text as any).defaultProps = {};
+  if (!(Text as any).defaultProps.style) {
+    (Text as any).defaultProps.style = { fontFamily: 'TNH-Xuong' };
+  }
+
+  if ((TextInput as any).defaultProps == null) (TextInput as any).defaultProps = {};
+  if (!(TextInput as any).defaultProps.style) {
+    (TextInput as any).defaultProps.style = { fontFamily: 'TNH-Xuong' };
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" />
+
       <Stack
         screenOptions={{
           headerStyle: {
@@ -63,7 +73,6 @@ export default function RootLayout() {
           },
           headerTintColor: '#ffffff',
           headerTitleStyle: {
-            fontWeight: 'bold',
             fontFamily: 'TNH-Xuong',
             fontSize: 24,
           },
@@ -72,47 +81,32 @@ export default function RootLayout() {
           },
         }}
       >
-        {/* Main Tabs - Default screen */}
+        {/* Root entry */}
         <Stack.Screen
           name="(tabs)"
-          options={{
-            headerShown: false,
-          }}
+          options={{ headerShown: false }}
         />
-        
-        {/* Modal/Stack Screens */}
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
-          }}
-        />
+
+        {/* Other screens */}
         <Stack.Screen
           name="scenario-select"
-          options={{
-            title: 'Chọn Kịch Bản',
-            presentation: 'card',
-          }}
+          options={{ title: 'Chọn Kịch Bản' }}
         />
+
         <Stack.Screen
           name="player-setup"
-          options={{
-            title: 'Thiết Lập Người Chơi',
-            presentation: 'card',
-          }}
+          options={{ title: 'Thiết Lập Người Chơi' }}
         />
+
         <Stack.Screen
           name="manual-role-note"
-          options={{
-            title: 'Ghi Nhận Vai Trò',
-            presentation: 'card',
-          }}
+          options={{ title: 'Ghi Nhận Vai Trò' }}
         />
+
         <Stack.Screen
           name="game-master-board"
           options={{
             title: 'Bảng Điều Khiển',
-            headerShown: true,
             presentation: 'fullScreenModal',
           }}
         />

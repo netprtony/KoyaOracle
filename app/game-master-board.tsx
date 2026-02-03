@@ -21,7 +21,10 @@ import { getPhaseDisplay } from '../src/engine/phaseController';
 import { getRoleManager } from '../src/engine/RoleManager';
 import { DaySubPhase, NightOrderDefinition } from '../src/types';
 import { NightAction } from '../assets/role-types';
-import { SwipeableCardStack } from '../src/components/SwipeableCardStack';
+import { SwipeableCardStack, SwipeEffect } from '../src/components/SwipeableCardStack';
+import { SwipeEffectPicker } from '../src/components/SwipeEffectPicker';
+import { CountdownTimer } from '../src/components/CountdownTimer';
+import { TimerSettingsPicker } from '../src/components/TimerSettingsPicker';
 import { NightOrderEditor } from '../src/components/NightOrderEditor';
 import { MorningReportModal } from '../src/components/MorningReportModal';
 import { SeerInvestigationResultModal } from '../src/components/SeerInvestigationResultModal';
@@ -119,6 +122,14 @@ export default function GameMasterBoardScreen() {
   // Victory Modal State
   const [gameWinner, setGameWinner] = useState<WinResult | null>(null);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
+  
+  // Swipe Effect Settings
+  const [swipeEffect, setSwipeEffect] = useState<SwipeEffect>('default');
+  const [showSwipeEffectPicker, setShowSwipeEffectPicker] = useState(false);
+  
+  // Timer Settings
+  const [roleTimerDuration, setRoleTimerDuration] = useState(300); // 5 minutes default
+  const [showTimerSettings, setShowTimerSettings] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const viewRoleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -812,6 +823,16 @@ export default function GameMasterBoardScreen() {
     setShowOrderSettings(true);
   };
 
+  const handleOpenSwipeEffectPicker = () => {
+    setIsSidebarOpen(false);
+    setShowSwipeEffectPicker(true);
+  };
+
+  const handleOpenTimerSettings = () => {
+    setIsSidebarOpen(false);
+    setShowTimerSettings(true);
+  };
+
   const handleSaveOrderSettings = (newOrder: NightOrderDefinition) => {
     updateNightOrder(newOrder);
     setShowOrderSettings(false);
@@ -880,14 +901,9 @@ export default function GameMasterBoardScreen() {
             <Text style={styles.cardTitle}>{role.name}</Text>
             <View style={styles.cardTitleRow}>
               {isActive && (
-                <>
                   <TouchableOpacity onPress={() => setShowRoleDesc(true)} style={styles.infoBtn}>
                     <Text style={styles.infoBtnText}>ℹ️</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setShowPlayerListModal(true)} style={styles.infoBtn}>
-                    <Text style={styles.infoBtnText}>📋</Text>
-                  </TouchableOpacity>
-                </>
               )}
             </View>
           </Text>
@@ -1129,16 +1145,42 @@ export default function GameMasterBoardScreen() {
 
   const renderNightPhase = () => {
     // Prepare cards for SwipeableCardStack
+    // Get assigned players for current role to show player name on card back
+    const getPlayerNameForRole = (roleId: string): string => {
+      const assignedPlayers = getAssignedPlayersForRole(roleId);
+      if (assignedPlayers.length > 0) {
+        return assignedPlayers.map(p => p.name).join(', ');
+      }
+      return 'Chưa gán';
+    };
+
     const cards = nightSequence.map((role, index) => ({
       id: role.id,
       icon: role.icon,
       name: role.name,
+      playerName: getPlayerNameForRole(role.id),
       content: renderRoleCardContent(role, index === currentRoleIndex),
       onLongPress: index === currentRoleIndex ? () => setShowPlayerListModal(true) : undefined,
     }));
 
     return (
-      <View style={styles.nightContainer}>
+      <Pressable 
+        style={styles.nightContainer} 
+        onLongPress={() => setShowPlayerListModal(true)}
+        delayLongPress={400}
+      >
+        {/* Countdown Timer Bar - horizontal, at top */}
+        {roleTimerDuration > 0 && (
+          <View style={styles.timerBar}>
+            <CountdownTimer
+              key={currentRoleIndex}
+              duration={roleTimerDuration}
+              autoStart={true}
+              showControls={true}
+            />
+          </View>
+        )}
+        
         <SwipeableCardStack
           cards={cards}
           currentIndex={currentRoleIndex}
@@ -1146,6 +1188,7 @@ export default function GameMasterBoardScreen() {
           onSwipeRight={handleNextRole}
           canSwipeLeft={currentRoleIndex > 0}
           canSwipeRight={currentRoleIndex < nightSequence.length - 1 || !shouldShowRoleAssignment || (!!currentRole && isRoleFullyAssigned(currentRole.id))}
+          swipeEffect={swipeEffect}
         />
         
         {/* Action Buttons */}
@@ -1169,7 +1212,7 @@ export default function GameMasterBoardScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </Pressable>
     );
   };
 
@@ -1323,6 +1366,14 @@ export default function GameMasterBoardScreen() {
                      <Text style={styles.menuItemIcon}>⚙️</Text>
                      <Text style={styles.menuItemText}>Cài đặt thứ tự gọi</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={handleOpenSwipeEffectPicker}>
+                     <Text style={styles.menuItemIcon}>✨</Text>
+                     <Text style={styles.menuItemText}>Hiệu ứng vuốt</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={handleOpenTimerSettings}>
+                     <Text style={styles.menuItemIcon}>⏱️</Text>
+                     <Text style={styles.menuItemText}>Cài đặt đồng hồ</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.menuItem} onPress={handleRestartGame}>
                      <Text style={styles.menuItemIcon}>🔄</Text>
                      <Text style={styles.menuItemText}>Bắt đầu lại</Text>
@@ -1350,6 +1401,22 @@ export default function GameMasterBoardScreen() {
            </View>
         </View>
       )}
+
+      {/* SWIPE EFFECT PICKER */}
+      <SwipeEffectPicker
+        visible={showSwipeEffectPicker}
+        onClose={() => setShowSwipeEffectPicker(false)}
+        selectedEffect={swipeEffect}
+        onSelectEffect={setSwipeEffect}
+      />
+
+      {/* TIMER SETTINGS PICKER */}
+      <TimerSettingsPicker
+        visible={showTimerSettings}
+        onClose={() => setShowTimerSettings(false)}
+        selectedDuration={roleTimerDuration}
+        onSelectDuration={setRoleTimerDuration}
+      />
 
       {/* MODALS - Keep all existing modals */}
       {/* LOG MODAL */}
@@ -1823,6 +1890,13 @@ const styles = StyleSheet.create({
   nightContainer: {
     flex: 1,
     position: 'relative',
+  },
+  timerBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 50,
   },
   nightActionsFixed: {
     position: 'absolute',
