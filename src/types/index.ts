@@ -178,6 +178,7 @@ export interface GameState {
     initializeGame: (mode: GameMode, scenarioId: string, playerData: Array<{ name: string; color: string }>) => void;
     assignRole: (playerId: string, roleId: string | null) => void;
     recordNightAction: (roleId: string, targetPlayerId: string | null, actionType?: string) => void;
+    clearNightActionForRole: (roleId: string, actionType?: string) => void;
     advanceToDay: () => void;
     lynchPlayer: (playerId: string) => void;
     advanceToNight: () => void;

@@ -17,7 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 40;
 const CARD_HEIGHT = SCREEN_HEIGHT * 0.65;
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.2;
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.15;
 const ROTATION_ANGLE = 12;
 const STACK_OFFSET = 8;
 const STACK_SCALE_STEP = 0.04;
@@ -131,8 +131,8 @@ export const SwipeableCardStack: React.FC<SwipeableCardStackProps> = ({
   };
 
   const panGesture = Gesture.Pan()
-    .activeOffsetX([-20, 20])
-    .failOffsetY([-20, 20])
+    .activeOffsetX([-5, 5])
+    .failOffsetY([-40, 40])
     .onUpdate((event) => {
       if (!canSwipeLeft && event.translationX < 0) {
         translateX.value = event.translationX * 0.12;
@@ -407,12 +407,8 @@ const AnimatedCard: React.FC<AnimatedCardProps> = ({
   // Render card back content - shows role reveal
   const renderCardBack = () => {
     // Debug logging
-    console.log('[CardBack] Rendering for card:', {
-      id: card.id,
-      name: card.name,
-      icon: card.icon,
-      playerName: card.playerName,
-    });
+    // Debug log removed
+
     
     const hasRole = card.playerName && card.playerName !== 'Chưa gán';
     

@@ -1,4 +1,4 @@
-
+﻿
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -63,6 +63,7 @@ export default function GameMasterBoardScreen() {
     availableRoles,
     availableScenarios,
     recordNightAction,
+    clearNightActionForRole,
     advanceToDay,
     processNightDeaths,
     processDeathWithCause,
@@ -130,6 +131,9 @@ export default function GameMasterBoardScreen() {
   // Timer Settings
   const [roleTimerDuration, setRoleTimerDuration] = useState(300); // 5 minutes default
   const [showTimerSettings, setShowTimerSettings] = useState(false);
+  
+  // Dual Action Modal (for Witch)
+  const [showDualActionModal, setShowDualActionModal] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const viewRoleTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -860,27 +864,85 @@ export default function GameMasterBoardScreen() {
 
   // --- RENDER HELPERS ---
 
+  // Helper to get current action status for a role
+  const getActionStatusForRole = (roleId: string) => {
+    // Check current night actions first
+    const currentActions = session.nightActions.filter(a => a.roleId === roleId);
+    return currentActions;
+  };
+
+  // Render action status display on card
+  const renderActionStatus = (role: any) => {
+    const currentActions = getActionStatusForRole(role.id);
+    const nightAction = getCurrentNightAction();
+    const skillInfo = nightAction ? getSkillDisplay(nightAction.type) : null;
+    
+    if (currentActions.length === 0) return null;
+
+    // For dual actions (Witch)
+    if (nightAction?.type === 'dual') {
+      const healAction = currentActions.find(a => a.actionType === 'heal');
+      const killAction = currentActions.find(a => a.actionType === 'kill');
+      
+      return (
+        <View style={styles.actionStatusContainer}>
+          {healAction && (
+            <View style={styles.actionStatusRow}>
+              <Text style={styles.actionStatusIcon}>💊</Text>
+              <Text style={styles.actionStatusText}>
+                {healAction.targetPlayerId 
+                  ? `Đã cứu: ${session.players.find(p => p.id === healAction.targetPlayerId)?.name}`
+                  : 'Bỏ qua cứu'}
+              </Text>
+            </View>
+          )}
+          {killAction && (
+            <View style={styles.actionStatusRow}>
+              <Text style={styles.actionStatusIcon}>☠️</Text>
+              <Text style={styles.actionStatusText}>
+                {killAction.targetPlayerId 
+                  ? `Đã giết: ${session.players.find(p => p.id === killAction.targetPlayerId)?.name}`
+                  : 'Bỏ qua giết'}
+              </Text>
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    // For single actions
+    const action = currentActions[0];
+    if (!action || !action.targetPlayerId) return null;
+
+    const targetPlayer = session.players.find(p => p.id === action.targetPlayerId);
+    
+    return (
+      <View style={styles.actionStatusContainer}>
+        <View style={styles.actionStatusRow}>
+          <Text style={styles.actionStatusIcon}>{skillInfo?.icon || '✓'}</Text>
+          <Text style={styles.actionStatusText}>
+            Đã {skillInfo?.verb || 'chọn'}: {targetPlayer?.name || 'Không xác định'}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderRoleCardContent = (role: any, isActive: boolean = false) => {
     const nightAction = getCurrentNightAction();
     const skillInfo = nightAction ? getSkillDisplay(nightAction.type) : null;
     const hasSkill = nightAction && nightAction.type !== 'none';
     const isAssigned = isRoleFullyAssigned(role.id);
     const assignedPlayers = getAssignedPlayersForRole(role.id);
-    // 1. Dead State Check
-    // If there are assigned players and ALL of them are dead, interactions are disabled.
-    // Logic: 
-    // - For single-player roles (Seer, Witch): If player is dead -> Disabled.
-    // - For group roles (Werewolves): If ALL wolves are dead -> Disabled (though game likely ends).
-    // - If NO players assigned yet -> Not disabled by death (disabled by assignment check).
     const areAllAssignedDead = assignedPlayers.length > 0 && assignedPlayers.every(p => !p.isAlive);
     const deadPlayerNames = assignedPlayers.filter(p => !p.isAlive).map(p => p.name).join(', ');
 
-    // styles.cardInner has flex:1 and padding:24.
+    // Check if action was taken for this role
+    const currentActions = getActionStatusForRole(role.id);
+    const hasActionTaken = currentActions.length > 0;
     
     return (
-      <View 
-        style={styles.cardInner}
-      >
+      <View style={styles.cardInner}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardCount}>
             Role {currentRoleIndex + 1} / {nightSequence.length}
@@ -908,7 +970,7 @@ export default function GameMasterBoardScreen() {
             </View>
           </Text>
 
-          {/* DEAD STATUS OVERLAY OR TEXT */}
+          {/* DEAD STATUS */}
           {areAllAssignedDead && (
              <View style={{marginTop: 10, padding: 8, backgroundColor: '#330000', borderRadius: 8}}>
                  <Text style={{color: '#ff4444', fontWeight: 'bold', textAlign: 'center'}}>
@@ -916,26 +978,14 @@ export default function GameMasterBoardScreen() {
                  </Text>
              </View>
           )}
-
-          {shouldShowRoleAssignment && role && isActive && (
-            <TouchableOpacity 
-              style={[
-                styles.centralAssignBtn,
-                isAssigned ? styles.centralAssignBtnDone : styles.centralAssignBtnPending
-              ]}
-              onPress={handleOpenRoleAssign}
-            >
-              <Text style={styles.centralAssignBtnText}>
-                {isAssigned 
-                  ? `✓ Đã gán ${getAssignedPlayersForRole(role.id).length}/${getRoleQuantity(role.id)}` 
-                  : `+ Gán người chơi (${getAssignedPlayersForRole(role.id).length}/${getRoleQuantity(role.id)})`}
-              </Text>
-            </TouchableOpacity>
-          )}
         </View>
         
-        {/* If Dead, do not show skill interactions, show Reset/Skip note maybe? 
-            Or just hide and let user swipe. */}
+        {/* ACTION STATUS DISPLAY - Shows result of actions */}
+        {isActive && !areAllAssignedDead && hasActionTaken && (
+          renderActionStatus(role)
+        )}
+
+        {/* SKILL INFO DISPLAY (Read-only) */}
         {areAllAssignedDead ? (
             <View style={styles.lockedSkillSection}>
                <Text style={styles.lockedSkillText}>Không thể thực hiện hành động.</Text>
@@ -950,13 +1000,11 @@ export default function GameMasterBoardScreen() {
                   <Text style={styles.skillName}>{skillInfo.name}</Text>
                   <Text style={styles.skillFrequency}>{getFrequencyText(nightAction?.frequency)}</Text>
                 </View>
-                {!isAssigned && (
-                    <View style={styles.skillTargetCount}>
-                      <Text style={styles.skillTargetCountText}>
-                        {nightAction?.targetCount || 1} mục tiêu
-                      </Text>
-                    </View>
-                )}
+                <View style={styles.skillTargetCount}>
+                  <Text style={styles.skillTargetCountText}>
+                    {nightAction?.targetCount || 1} mục tiêu
+                  </Text>
+                </View>
               </View>
               
               {nightAction?.restrictions && nightAction.restrictions.length > 0 && (
@@ -964,167 +1012,43 @@ export default function GameMasterBoardScreen() {
                   ⚠️ {getRestrictionText(nightAction.restrictions)}
                 </Text>
               )}
-              
-              {nightAction?.type === 'dual' ? (
-                  // Witch Dual UI
-                  <View style={{marginTop: 16, gap: 12}}>
-                      {/* PRE-CALCULATE VICTIM FOR WITCH */}
-                      {(() => {
-                           // 2. Witch Logic application
-                           // Run resolution with CURRENT actions to see who is dying
-                           // But exclude Witch's current actions to see the "incoming" state?
-                           // Actually resolveNightEvents handles protection logic.
-                           // We want to know: "Who dies if I (Witch) do nothing?"
-                           
-                           // Filter out Witch actions from the simulation set
-                           const actionsExcludingWitch = session.nightActions.filter(a => a.roleId !== role.id);
-                           const simulation = resolveNightEvents(
-                               actionsExcludingWitch,
-                               session.players,
-                               availableRoles,
-                               session.players.filter(p => !p.isAlive).map(p => p.id)
-                           );
-                           
-                           const potentialVictims = simulation.deadPlayerIds; 
-                           // Note: deadPlayerIds from simulation are IDs.
-                           // If valid victim exists, display name.
-                           
-                           // We only care about victims that the Witch can SAVE.
-                           // Typically this is the Werewolf kill.
-                           // Our resolveNightEvents combines kills. 
-                           // If the Guard protected them, they won't be in deadPlayerIds.
-                           // So this correctly reflects "Who is dead right now".
-                           
-                           const victimName = potentialVictims.length > 0 
-                                ? session.players.filter(p => potentialVictims.includes(p.id)).map(p => p.name).join(', ')
-                                : null;
 
-                           return (
-                               <>
-                                   {/* HEAL ACTION */}
-                                   <View style={styles.dualActionRow}>
-                                      <View style={{flex: 1}}>
-                                         <Text style={styles.dualActionTitle}>💊 Cứu người</Text>
-                                         {victimName ? (
-                                             <Text style={{color: '#ef4444', fontWeight: 'bold', fontSize: 13}}>
-                                                 Đang hấp hối: {victimName}
-                                             </Text>
-                                         ) : (
-                                             <Text style={{color: '#10b981', fontSize: 13}}>
-                                                 Không có ai chết
-                                             </Text>
-                                         )}
-                                         <Text style={styles.dualActionStatus}>
-                                            {(() => {
-                                               // Check current night
-                                               const currentAction = session.nightActions.find(a => 
-                                                  a.roleId === role.id && a.actionType === 'heal'
-                                               );
-                                               if (currentAction) {
-                                                   const target = session.players.find(p => p.id === currentAction.targetPlayerId);
-                                                   return target ? `Đã cứu: ${target.name}` : 'Đã bỏ qua';
-                                               }
-                                               
-                                               // Check history
-                                               const historyLog = session.matchLog.find(log => 
-                                                   log.type === 'ROLE_ACTION' && 
-                                                   log.metadata?.roleId === role.id && 
-                                                   log.metadata?.actionType === 'heal'
-                                               );
-                                               if (historyLog) return `Đã dùng (Đêm ${historyLog.phase?.number})`;
-
-                                               return 'Chưa dùng';
-                                            })()}
-                                         </Text>
-                                      </View>
-                                      <TouchableOpacity 
-                                         style={[
-                                             styles.smallActionBtn, 
-                                             {backgroundColor: '#10b981'},
-                                             (!victimName || 
-                                              session.matchLog.some(l => l.metadata?.roleId === role.id && l.metadata?.actionType === 'heal') ||
-                                              session.nightActions.some(a => a.roleId === role.id && a.actionType === 'heal')
-                                             ) && {opacity: 0.5} 
-                                         ]}
-                                         disabled={
-                                             !victimName || 
-                                             session.matchLog.some(l => l.metadata?.roleId === role.id && l.metadata?.actionType === 'heal') ||
-                                             session.nightActions.some(a => a.roleId === role.id && a.actionType === 'heal')
-                                         }
-                                         onPress={() => handleOpenSkillModal('heal')}
-                                      >
-                                         <Text style={styles.smallActionBtnText}>Chọn</Text>
-                                      </TouchableOpacity>
-                                   </View>
-            
-                                   {/* KILL ACTION */}
-                                   <View style={styles.dualActionRow}>
-                                      <View style={{flex: 1}}>
-                                         <Text style={styles.dualActionTitle}>☠️ Giết người</Text>
-                                         <Text style={styles.dualActionStatus}>
-                                            {(() => {
-                                               const currentAction = session.nightActions.find(a => a.roleId === role.id && a.actionType === 'kill');
-                                               if (currentAction) {
-                                                    const target = session.players.find(p => p.id === currentAction.targetPlayerId);
-                                                    return target ? `Đã giết: ${target.name}` : 'Đã bỏ qua';
-                                               }
-
-                                               const historyLog = session.matchLog.find(log => 
-                                                   log.type === 'ROLE_ACTION' && 
-                                                   log.metadata?.roleId === role.id && 
-                                                   log.metadata?.actionType === 'kill'
-                                               );
-                                               if (historyLog) return `Đã dùng (Đêm ${historyLog.phase?.number})`;
-
-                                               return 'Chưa dùng';
-                                            })()}
-                                         </Text>
-                                      </View>
-                                      <TouchableOpacity 
-                                         style={[
-                                             styles.smallActionBtn, 
-                                             {backgroundColor: '#ef4444'},
-                                              (session.matchLog.some(l => l.metadata?.roleId === role.id && l.metadata?.actionType === 'kill') ||
-                                               session.nightActions.some(a => a.roleId === role.id && a.actionType === 'kill')
-                                              ) && {opacity: 0.5}
-                                         ]}
-                                         disabled={
-                                              session.matchLog.some(l => l.metadata?.roleId === role.id && l.metadata?.actionType === 'kill') ||
-                                              session.nightActions.some(a => a.roleId === role.id && a.actionType === 'kill')
-                                         }
-                                         onPress={() => handleOpenSkillModal('kill')}
-                                      >
-                                         <Text style={styles.smallActionBtnText}>Chọn</Text>
-                                      </TouchableOpacity>
-                                   </View>
-                               </>
-                           );
-                      })()}
-                  </View>
-              ) : (
-                  // Standard Single Action UI
-                  <>
-                      {selectedTargetId && (
-                        <View style={styles.selectedTargetDisplay}>
-                          <Text style={styles.selectedTargetLabel}>Đã chọn:</Text>
-                          <Text style={styles.selectedTargetName}>
-                            {alivePlayers.find(p => p.id === selectedTargetId)?.name || 'Không xác định'}
-                          </Text>
-                        </View>
-                      )}
-                      
-                      <TouchableOpacity 
-                        style={[styles.skillActionBtn, selectedTargetId && styles.skillActionBtnDone]}
-                        onPress={() => handleOpenSkillModal()}
-                      >
-                        <Text style={styles.skillActionBtnText}>
-                          {selectedTargetId 
-                            ? `✓ Đã ${skillInfo.verb}` 
-                            : `${skillInfo.icon} Chọn để ${skillInfo.verb}`}
+              {/* For Witch - show victim info */}
+              {nightAction?.type === 'dual' && (
+                <View style={{marginTop: 12}}>
+                  {(() => {
+                    const actionsExcludingWitch = session.nightActions.filter(a => a.roleId !== role.id);
+                    const simulation = resolveNightEvents(
+                        actionsExcludingWitch,
+                        session.players,
+                        availableRoles,
+                        session.players.filter(p => !p.isAlive).map(p => p.id)
+                    );
+                    const victimName = simulation.deadPlayerIds.length > 0 
+                      ? session.players.filter(p => simulation.deadPlayerIds.includes(p.id)).map(p => p.name).join(', ')
+                      : null;
+                    
+                    return victimName ? (
+                      <View style={{backgroundColor: '#450a0a', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#ef4444'}}>
+                        <Text style={{color: '#fca5a5', fontWeight: 'bold', textAlign: 'center'}}>
+                          ⚠️ Đang hấp hối: {victimName}
                         </Text>
-                      </TouchableOpacity>
-                  </>
+                      </View>
+                    ) : (
+                      <View style={{backgroundColor: '#052e16', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#10b981'}}>
+                        <Text style={{color: '#86efac', fontWeight: 'bold', textAlign: 'center'}}>
+                          ✓ Đêm nay không ai chết
+                        </Text>
+                      </View>
+                    );
+                  })()}
+                </View>
               )}
+
+              {/* Hint text */}
+              <Text style={styles.actionHintText}>
+                {hasActionTaken ? '↓ Nhấn nút bên dưới để sửa' : '↓ Nhấn nút bên dưới để thực hiện'}
+              </Text>
             </View>
           ) : (
             <View style={styles.lockedSkillSection}>
@@ -1191,24 +1115,120 @@ export default function GameMasterBoardScreen() {
           swipeEffect={swipeEffect}
         />
         
-        {/* Action Buttons */}
+        {/* Action Buttons with Central Action */}
         <View style={styles.nightActionsFixed}>
           <TouchableOpacity 
-            style={[styles.actionButtonSecondary, currentRoleIndex === 0 && styles.disabledBtn]} 
+            style={[styles.actionButtonSmall, currentRoleIndex === 0 && styles.disabledBtn]} 
             onPress={handlePreviousRole}
             disabled={currentRoleIndex === 0}
           >
             <Text style={[styles.actionBtnTextSec, currentRoleIndex === 0 && { opacity: 0.3 }]}>
-              ‹ Trước
+              ‹
             </Text>
           </TouchableOpacity>
           
+          {/* CENTRAL ACTION BUTTON */}
+          {(() => {
+            if (!currentRole) return null;
+            
+            const nightAction = getCurrentNightAction();
+            const skillInfo = nightAction ? getSkillDisplay(nightAction.type) : null;
+            const hasSkill = nightAction && nightAction.type !== 'none';
+            const isAssigned = isRoleFullyAssigned(currentRole.id);
+            const assignedPlayers = getAssignedPlayersForRole(currentRole.id);
+            const areAllAssignedDead = assignedPlayers.length > 0 && assignedPlayers.every(p => !p.isAlive);
+            const currentActions = getActionStatusForRole(currentRole.id);
+            const hasActionTaken = currentActions.length > 0;
+            
+            // If all assigned are dead, show disabled
+            if (areAllAssignedDead) {
+              return (
+                <View style={[styles.centralActionButton, styles.centralActionButtonDisabled]}>
+                  <Text style={styles.centralActionButtonText}>🚫 Đã chết</Text>
+                </View>
+              );
+            }
+            
+            // Night 1 - Show role assignment button if not assigned
+            if (shouldShowRoleAssignment && !isAssigned) {
+              return (
+                <TouchableOpacity 
+                  style={[styles.centralActionButton, styles.centralActionButtonAssign]}
+                  onPress={handleOpenRoleAssign}
+                >
+                  <Text style={styles.centralActionButtonText}>
+                    + Gán ({getAssignedPlayersForRole(currentRole.id).length}/{getRoleQuantity(currentRole.id)})
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+            
+            // After assignment or Night 2+
+            // If role has skill
+            if (hasSkill && skillInfo) {
+              // For dual action roles (Witch) - open action selection modal
+              if (nightAction?.type === 'dual') {
+                return (
+                  <TouchableOpacity 
+                    style={[
+                      styles.centralActionButton, 
+                      hasActionTaken ? styles.centralActionButtonDone : styles.centralActionButtonAction
+                    ]}
+                    onPress={() => setShowDualActionModal(true)}
+                  >
+                    <Text style={styles.centralActionButtonText}>
+                      {hasActionTaken ? '✏️ Sửa hành động' : `${skillInfo.icon} Hành động`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }
+              
+              // For single action roles
+              return (
+                <TouchableOpacity 
+                  style={[
+                    styles.centralActionButton, 
+                    hasActionTaken ? styles.centralActionButtonDone : styles.centralActionButtonAction
+                  ]}
+                  onPress={() => handleOpenSkillModal()}
+                >
+                  <Text style={styles.centralActionButtonText}>
+                    {hasActionTaken 
+                      ? `✏️ Sửa ${skillInfo.verb}` 
+                      : `${skillInfo.icon} ${skillInfo.name}`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+            
+            // Show role assignment button if assigned on Night 1
+            if (shouldShowRoleAssignment && isAssigned) {
+              return (
+                <TouchableOpacity 
+                  style={[styles.centralActionButton, styles.centralActionButtonDone]}
+                  onPress={handleOpenRoleAssign}
+                >
+                  <Text style={styles.centralActionButtonText}>
+                    ✓ Đã gán {getAssignedPlayersForRole(currentRole.id).length}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+            
+            // No action available
+            return (
+              <View style={[styles.centralActionButton, styles.centralActionButtonDisabled]}>
+                <Text style={styles.centralActionButtonText}>Không có hành động</Text>
+              </View>
+            );
+          })()}
+          
           <TouchableOpacity 
-            style={styles.actionButtonPrimary} 
+            style={styles.actionButtonSmall} 
             onPress={handleNextRole}
           >
             <Text style={styles.actionBtnText}>
-              {currentRoleIndex === nightSequence.length - 1 ? 'Kết thúc đêm' : 'Tiếp ›'}
+              {currentRoleIndex === nightSequence.length - 1 ? '✓' : '›'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1629,6 +1649,180 @@ export default function GameMasterBoardScreen() {
          onClose={handleConfirmMorningReport}
          messages={morningMessages}
       />
+
+      {/* DUAL ACTION MODAL (for Witch) */}
+      <Modal visible={showDualActionModal} animationType="slide" transparent onRequestClose={() => setShowDualActionModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalPanel, { height: 'auto', maxHeight: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Hành động của Phù Thủy</Text>
+                <Text style={styles.modalSubtitle}>Chọn hành động muốn thực hiện</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDualActionModal(false)}>
+                <Text style={styles.closeBtn}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              {(() => {
+                if (!currentRole) return null;
+                
+                // Calculate victim info
+                const actionsExcludingWitch = session.nightActions.filter(a => a.roleId !== currentRole.id);
+                const simulation = resolveNightEvents(
+                    actionsExcludingWitch,
+                    session.players,
+                    availableRoles,
+                    session.players.filter(p => !p.isAlive).map(p => p.id)
+                );
+                const victimName = simulation.deadPlayerIds.length > 0 
+                  ? session.players.filter(p => simulation.deadPlayerIds.includes(p.id)).map(p => p.name).join(', ')
+                  : null;
+                
+                // Check if heal was already used
+                const healUsedInHistory = session.matchLog.some(l => 
+                  l.metadata?.roleId === currentRole.id && l.metadata?.actionType === 'heal'
+                );
+                const healUsedThisNight = session.nightActions.some(a => 
+                  a.roleId === currentRole.id && a.actionType === 'heal'
+                );
+                const healAction = session.nightActions.find(a => 
+                  a.roleId === currentRole.id && a.actionType === 'heal'
+                );
+                
+                // Check if kill was already used  
+                const killUsedInHistory = session.matchLog.some(l => 
+                  l.metadata?.roleId === currentRole.id && l.metadata?.actionType === 'kill'
+                );
+                const killUsedThisNight = session.nightActions.some(a => 
+                  a.roleId === currentRole.id && a.actionType === 'kill'
+                );
+                const killAction = session.nightActions.find(a => 
+                  a.roleId === currentRole.id && a.actionType === 'kill'
+                );
+                
+                return (
+                  <View style={{gap: 16}}>
+                    {/* HEAL ACTION */}
+                    <View style={[styles.dualActionCard, healUsedInHistory && {opacity: 0.5}]}>
+                      <View style={styles.dualActionCardHeader}>
+                        <Text style={styles.dualActionCardIcon}>💊</Text>
+                        <View style={{flex: 1}}>
+                          <Text style={styles.dualActionCardTitle}>Cứu người</Text>
+                          {victimName ? (
+                            <Text style={{color: '#ef4444', fontWeight: 'bold', fontSize: 13}}>
+                              Đang hấp hối: {victimName}
+                            </Text>
+                          ) : (
+                            <Text style={{color: '#10b981', fontSize: 13}}>
+                              Không có ai chết đêm nay
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      
+                      {healUsedThisNight && healAction && (
+                        <View style={styles.dualActionStatusBar}>
+                          <Text style={styles.dualActionStatusText}>
+                            ✓ {healAction.targetPlayerId 
+                              ? `Đã cứu: ${session.players.find(p => p.id === healAction.targetPlayerId)?.name}`
+                              : 'Đã bỏ qua'}
+                          </Text>
+                          <TouchableOpacity 
+                            style={styles.dualActionClearBtn}
+                            onPress={() => {
+                              // Clear this action
+                              clearNightActionForRole(currentRole.id, 'heal');
+                            }}
+                          >
+                            <Text style={styles.dualActionClearBtnText}>Xóa</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      
+                      {!healUsedThisNight && !healUsedInHistory && (
+                        <TouchableOpacity 
+                          style={[styles.dualActionButton, {backgroundColor: '#10b981'}, !victimName && {opacity: 0.5}]}
+                          onPress={() => {
+                            setShowDualActionModal(false);
+                            handleOpenSkillModal('heal');
+                          }}
+                          disabled={!victimName}
+                        >
+                          <Text style={styles.dualActionButtonText}>
+                            {victimName ? 'Chọn cứu' : 'Không có ai để cứu'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      
+                      {healUsedInHistory && !healUsedThisNight && (
+                        <Text style={styles.dualActionUsedText}>Đã dùng ở đêm trước</Text>
+                      )}
+                    </View>
+                    
+                    {/* KILL ACTION */}
+                    <View style={[styles.dualActionCard, killUsedInHistory && {opacity: 0.5}]}>
+                      <View style={styles.dualActionCardHeader}>
+                        <Text style={styles.dualActionCardIcon}>☠️</Text>
+                        <View style={{flex: 1}}>
+                          <Text style={styles.dualActionCardTitle}>Giết người</Text>
+                          <Text style={{color: '#9ca3af', fontSize: 13}}>
+                            Chọn một người để giết
+                          </Text>
+                        </View>
+                      </View>
+                      
+                      {killUsedThisNight && killAction && (
+                        <View style={styles.dualActionStatusBar}>
+                          <Text style={styles.dualActionStatusText}>
+                            ✓ {killAction.targetPlayerId 
+                              ? `Đã giết: ${session.players.find(p => p.id === killAction.targetPlayerId)?.name}`
+                              : 'Đã bỏ qua'}
+                          </Text>
+                          <TouchableOpacity 
+                            style={styles.dualActionClearBtn}
+                            onPress={() => {
+                              clearNightActionForRole(currentRole.id, 'kill');
+                            }}
+                          >
+                            <Text style={styles.dualActionClearBtnText}>Xóa</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      
+                      {!killUsedThisNight && !killUsedInHistory && (
+                        <TouchableOpacity 
+                          style={[styles.dualActionButton, {backgroundColor: '#ef4444'}]}
+                          onPress={() => {
+                            setShowDualActionModal(false);
+                            handleOpenSkillModal('kill');
+                          }}
+                        >
+                          <Text style={styles.dualActionButtonText}>Chọn giết</Text>
+                        </TouchableOpacity>
+                      )}
+                      
+                      {killUsedInHistory && !killUsedThisNight && (
+                        <Text style={styles.dualActionUsedText}>Đã dùng ở đêm trước</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })()}
+            </View>
+            
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={[styles.saveBtn, {backgroundColor: '#4B5563'}]}
+                onPress={() => setShowDualActionModal(false)}
+              >
+                <Text style={styles.saveBtnText}>Đóng</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ROLE ASSIGNMENT MODAL (Night 1 - Physical Card) */}
       <Modal visible={showRoleAssignModal} animationType="slide" transparent onRequestClose={() => setShowRoleAssignModal(false)}>
@@ -2720,5 +2914,142 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     padding: 20,
+  },
+  
+  // ACTION STATUS DISPLAY STYLES
+  actionStatusContainer: {
+    backgroundColor: '#1E3A5F',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  actionStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 4,
+  },
+  actionStatusIcon: {
+    fontSize: 18,
+  },
+  actionStatusText: {
+    color: '#93C5FD',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  actionHintText: {
+    color: '#6B7280',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 16,
+    fontStyle: 'italic',
+  },
+  
+  // CENTRAL ACTION BUTTON STYLES
+  actionButtonSmall: {
+    width: 50,
+    height: 50,
+    backgroundColor: '#374151',
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centralActionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 8,
+  },
+  centralActionButtonAssign: {
+    backgroundColor: '#4F46E5',
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    borderStyle: 'dashed',
+  },
+  centralActionButtonAction: {
+    backgroundColor: '#4F46E5',
+  },
+  centralActionButtonDone: {
+    backgroundColor: '#059669',
+  },
+  centralActionButtonDisabled: {
+    backgroundColor: '#374151',
+    opacity: 0.6,
+  },
+  centralActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  
+  // DUAL ACTION MODAL STYLES
+  dualActionCard: {
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  dualActionCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  dualActionCardIcon: {
+    fontSize: 32,
+  },
+  dualActionCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  dualActionStatusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#052e16',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#10b981',
+  },
+  dualActionStatusText: {
+    color: '#86efac',
+    fontWeight: '600',
+    flex: 1,
+  },
+  dualActionClearBtn: {
+    backgroundColor: '#450a0a',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#dc2626',
+  },
+  dualActionClearBtnText: {
+    color: '#fca5a5',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  dualActionButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  dualActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  dualActionUsedText: {
+    color: '#6b7280',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
   },
 });

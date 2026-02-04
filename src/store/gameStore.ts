@@ -211,6 +211,28 @@ export const useGameStore = create<GameState>((set, get) => ({
         get().saveGame();
     },
 
+    // Clear night action for a specific role and action type
+    clearNightActionForRole: (roleId: string, actionType?: string) => {
+        const { session } = get();
+        if (!session) return;
+
+        const updatedActions = session.nightActions.filter(a => {
+            if (a.roleId !== roleId) return true;
+            if (actionType && a.actionType !== actionType) return true;
+            return false;
+        });
+
+        set({
+            session: {
+                ...session,
+                nightActions: updatedActions,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().saveGame();
+    },
+
     // Advance to day phase
     advanceToDay: () => {
         const { session } = get();

@@ -20,3 +20,6 @@ web-build/
 .codex/
 .cursor/
 .opencode/
+.agent/skills/ui-ux-pro-max/data
+.agent/skills/ui-ux-pro-max/scripts
+.agent/skills/ui-ux-pro-max/SKILL.md
