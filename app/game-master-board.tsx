@@ -347,24 +347,26 @@ export default function GameMasterBoardScreen() {
     // Check for 'cannotTargetSamePersonConsecutively' restriction
     if (nightAction.restrictions?.includes('cannotTargetSamePersonConsecutively')) {
       const previousNightNumber = session.currentPhase.number - 1;
-      if (previousNightNumber > 0) {
-        const lastNightLog = [...session.matchLog].reverse().find(log => 
-          log.type === 'ROLE_ACTION' &&
-          log.metadata?.roleId === currentRole.id &&
-          log.phase?.number === previousNightNumber &&
-          log.phase?.type === 'NIGHT'
-        );
+      // Search backwards for the last successful action by this role
+      const lastActionLog = [...session.matchLog].reverse().find(log => 
+        log.type === 'ROLE_ACTION' &&
+        log.metadata?.roleId === currentRole.id &&
+        log.metadata?.targetPlayerId &&
+        log.phase?.type === 'NIGHT' &&
+        log.phase?.number === previousNightNumber
+      );
 
-        if (lastNightLog && lastNightLog.metadata?.targetPlayerId) {
-          const lastTargetId = lastNightLog.metadata.targetPlayerId;
-          if (skillTargets.includes(lastTargetId)) {
-            const lastTargetName = session.players.find(p => p.id === lastTargetId)?.name || 'mục tiêu cũ';
-            Alert.alert(
-              'Hành động không hợp lệ', 
-              `Vai trò này không thể chọn cùng 1 người 2 đêm liên tiếp.\n(Đêm trước đã chọn: ${lastTargetName})`
-            );
-            return;
-          }
+      // If we found a previous action (implied from the immediately preceding night by filter)
+      if (lastActionLog) {
+          
+        const lastTargetId = lastActionLog.metadata!.targetPlayerId;
+        if (skillTargets.includes(lastTargetId)) {
+          const lastTargetName = session.players.find(p => p.id === lastTargetId)?.name || 'mục tiêu cũ';
+          Alert.alert(
+            'Hành động không hợp lệ', 
+            `Vai trò này không thể chọn cùng 1 người 2 đêm liên tiếp.\n(Đêm trước đã chọn: ${lastTargetName})`
+          );
+          return;
         }
       }
     }
@@ -946,12 +948,37 @@ export default function GameMasterBoardScreen() {
                     const targetCount = action?.targetCount || 1;
                     
                     let isDisabled = false;
+                    let disabledReason = '';
                     
                     if (action && !action.canTargetSelf) {
                        const assignedPlayers = getAssignedPlayersForRole(currentRole?.id || '');
                        if (assignedPlayers.some(p => p.id === player.id)) {
                           isDisabled = true;
+                          disabledReason = '(Không thể chọn chính mình)';
                        }
+                    }
+
+                    // Check for consecutive target restriction
+                    if (!isDisabled && action && action.restrictions?.includes('cannotTargetSamePersonConsecutively')) {
+                        const previousNightNumber = session.currentPhase.number - 1;
+                        // Search backwards for the last successful action by this role
+                        const lastActionLog = [...session.matchLog].reverse().find(log => 
+                          log.type === 'ROLE_ACTION' &&
+                          log.metadata?.roleId === currentRole?.id &&
+                          log.metadata?.targetPlayerId &&
+                          log.phase?.type === 'NIGHT' &&
+                          log.phase?.number === previousNightNumber
+                        );
+
+                        // If we found a previous action from the immediately preceding night
+                        if (lastActionLog) {
+                            
+                          const lastTargetId = lastActionLog.metadata!.targetPlayerId;
+                          if (player.id === lastTargetId) {
+                              isDisabled = true;
+                              disabledReason = '(Đã chọn đêm trước)';
+                          }
+                        }
                     }
   
                     return (
@@ -971,7 +998,7 @@ export default function GameMasterBoardScreen() {
                           <Text style={[styles.playerName, isSelected && styles.playerNameSelected, isDisabled && styles.playerNameDisabled]}>
                             {player.name}
                           </Text>
-                          {isDisabled && <Text style={styles.playerRoleText}>(Không thể chọn)</Text>}
+                          {isDisabled && <Text style={styles.playerRoleText}>{disabledReason || '(Không thể chọn)'}</Text>}
                         </View>
                         <View style={[styles.checkBox, isSelected && styles.checkBoxSelected]}>
                           {isSelected && <Text style={styles.checkMark}>✓</Text>}
