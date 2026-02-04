@@ -11,6 +11,8 @@ import { GuardProtectCommand } from './GuardProtectCommand';
 import { WitchHealCommand } from './WitchHealCommand';
 import { WitchPoisonCommand } from './WitchPoisonCommand';
 import { SeerInvestigateCommand } from './SeerInvestigateCommand';
+import { PastorBlessCommand } from './PastorBlessCommand';
+import { CupidCreateLoversCommand } from './CupidCreateLoversCommand';
 import { BaseCommand } from '../BaseCommand';
 
 /**
@@ -36,11 +38,12 @@ export class CommandFactory {
         this.commandMap.set('heal', WitchHealCommand);
         this.commandMap.set('poison', WitchPoisonCommand);
         this.commandMap.set('investigate', SeerInvestigateCommand);
+        this.commandMap.set('bless', PastorBlessCommand);
+        this.commandMap.set('createLovers', CupidCreateLoversCommand);
 
         // Additional skill types can be registered here
         // this.commandMap.set('silence', SorcererSilenceCommand);
         // this.commandMap.set('exile', OldWomanExileCommand);
-        // this.commandMap.set('bless', PriestBlessCommand);
         // etc.
     }
 

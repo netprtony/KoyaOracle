@@ -1,6 +1,10 @@
 /**
  * WinConditionChecker - Checks all win conditions from roles.json
  * Handles team wins, individual wins, and special win conditions
+ * 
+ * Updated to properly handle:
+ * - Lovers from same team: win with their original team
+ * - Lovers from different teams: win only if last 2 survivors
  */
 
 import { Team } from '../../assets/role-types';
@@ -13,6 +17,7 @@ export interface WinResult {
     winner?: Team | string;
     winnerPlayerIds?: string[];
     winCondition?: string;
+    loversIncluded?: boolean; // Whether lovers are part of the winners
 }
 
 export class WinConditionChecker {
@@ -212,23 +217,44 @@ export class WinConditionChecker {
 
     /**
      * Check lovers win condition
+     * - Same team lovers: They win with their team (no special win)
+     * - Different team lovers: They win ONLY if they are the last 2 alive
      */
     private checkLoversWin(alivePlayers: EnhancedPlayerState[]): WinResult {
-        // Check if exactly 2 players alive and they are lovers from different teams
-        if (alivePlayers.length === 2) {
-            const [player1, player2] = alivePlayers;
+        // First, check if there are any lovers
+        const lovers = alivePlayers.filter(p => p.isLovers);
+        
+        if (lovers.length !== 2) {
+            return { hasWinner: false, winnerType: 'none' };
+        }
 
-            if (player1.isLovers && player2.isLovers &&
-                player1.loverPartnerId === player2.playerId &&
-                player1.team !== player2.team) {
-                return {
-                    hasWinner: true,
-                    winnerType: 'group',
-                    winner: 'lovers',
-                    winnerPlayerIds: [player1.playerId, player2.playerId],
-                    winCondition: 'beLastTwoSurvivors',
-                };
-            }
+        const [player1, player2] = lovers;
+
+        // Verify they are actually partners
+        if (player1.loverPartnerId !== player2.playerId) {
+            return { hasWinner: false, winnerType: 'none' };
+        }
+
+        // Get original teams from metadata (stored when Cupid created lovers)
+        const originalTeam1 = player1.originalTeam || player1.team;
+        const originalTeam2 = player2.originalTeam || player2.team;
+        const sameOriginalTeam = originalTeam1 === originalTeam2;
+
+        // Case 1: Same team lovers - they don't have a special win condition
+        // They will win when their team wins (handled by team win check)
+        if (sameOriginalTeam) {
+            return { hasWinner: false, winnerType: 'none' };
+        }
+
+        // Case 2: Different team lovers - win only if they are the last 2 alive
+        if (alivePlayers.length === 2) {
+            return {
+                hasWinner: true,
+                winnerType: 'group',
+                winner: 'lovers',
+                winnerPlayerIds: [player1.playerId, player2.playerId],
+                winCondition: 'beLastTwoSurvivors',
+            };
         }
 
         return { hasWinner: false, winnerType: 'none' };

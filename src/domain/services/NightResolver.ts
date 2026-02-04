@@ -18,6 +18,11 @@ import { PlayerStatus, clearNightStatuses } from '../entities/PlayerStatus';
 import { ICommand } from '../commands/ICommand';
 import { CommandInvoker } from '../commands/CommandInvoker';
 import { CommandResult } from '../commands/CommandResult';
+import { 
+    processDeathsWithLinkedFate, 
+    checkLoversWinCondition,
+    DeathProcessResult 
+} from './LoversLinkedFateHandler';
 
 export interface NightResolutionResult {
     state: GameState;
@@ -242,6 +247,7 @@ export class NightResolver {
 
     /**
      * Apply cascade death effects (lovers, twins)
+     * Uses LoversLinkedFateHandler for proper death processing
      */
     private applyCascadeDeaths(
         state: GameState,
@@ -251,52 +257,63 @@ export class NightResolver {
         additionalDeaths: string[];
         effects: NightEffect[];
     } {
-        let currentState = state;
-        const additionalDeaths: string[] = [];
-        const effects: NightEffect[] = [];
+        // Convert initialDeaths to death queue format
+        const deathQueue = initialDeaths.map(id => ({
+            playerId: id,
+            cause: 'initial_death' // Placeholder, actual cause tracked elsewhere
+        }));
 
-        for (const deadPlayerId of initialDeaths) {
+        // Use LoversLinkedFateHandler for proper linked fate processing
+        const result = processDeathsWithLinkedFate(deathQueue, state);
+
+        // Extract additional deaths (linked fate deaths)
+        const additionalDeaths = result.deaths
+            .filter(d => d.isLinkedFateDeath)
+            .map(d => d.playerId);
+
+        // Convert to effects
+        const effects: NightEffect[] = result.deaths
+            .filter(d => d.isLinkedFateDeath)
+            .map(d => ({
+                type: 'death_by_lover',
+                playerId: d.playerId,
+                description: `${d.playerName} chết vì mất đi người yêu`,
+                metadata: { cause: d.cause }
+            }));
+
+        // Also check for twin deaths
+        let currentState = result.state;
+        const twinEffects: NightEffect[] = [];
+        const twinDeaths: string[] = [];
+
+        for (const deadPlayerId of [...initialDeaths, ...additionalDeaths]) {
             const deadPlayer = currentState.getPlayer(deadPlayerId);
             if (!deadPlayer) continue;
-
-            // Check for lover partner
-            if (deadPlayer.isLover && deadPlayer.loverPartnerId) {
-                const partner = currentState.getPlayer(deadPlayer.loverPartnerId);
-
-                if (partner && partner.isAlive) {
-                    additionalDeaths.push(partner.id);
-                    const killedPartner = partner.kill('lover_death');
-                    currentState = currentState.updatePlayer(partner.id, () => killedPartner);
-
-                    effects.push({
-                        type: 'death_by_lover',
-                        playerId: partner.id,
-                        description: `${partner.name} died because their lover ${deadPlayer.name} died`,
-                        metadata: { partnerId: deadPlayer.id }
-                    });
-                }
-            }
 
             // Check for twin partner
             if (deadPlayer.isTwin && deadPlayer.twinPartnerId) {
                 const twin = currentState.getPlayer(deadPlayer.twinPartnerId);
 
-                if (twin && twin.isAlive) {
-                    additionalDeaths.push(twin.id);
+                if (twin && twin.isAlive && !additionalDeaths.includes(twin.id)) {
+                    twinDeaths.push(twin.id);
                     const killedTwin = twin.kill('twin_death');
                     currentState = currentState.updatePlayer(twin.id, () => killedTwin);
 
-                    effects.push({
+                    twinEffects.push({
                         type: 'death_by_twin',
                         playerId: twin.id,
-                        description: `${twin.name} died because their twin ${deadPlayer.name} died`,
+                        description: `${twin.name} chết vì mất đi người sinh đôi ${deadPlayer.name}`,
                         metadata: { twinId: deadPlayer.id }
                     });
                 }
             }
         }
 
-        return { state: currentState, additionalDeaths, effects };
+        return { 
+            state: currentState, 
+            additionalDeaths: [...additionalDeaths, ...twinDeaths], 
+            effects: [...effects, ...twinEffects]
+        };
     }
 
     /**

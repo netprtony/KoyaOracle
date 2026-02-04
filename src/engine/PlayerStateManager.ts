@@ -36,6 +36,7 @@ export interface EnhancedPlayerState {
     deathDelay: number; // Thanh Niên Cứng (0 = immediate, 1 = next night)
     hasTransformed: boolean; // Bị Nguyền
     originalRoleId?: string;
+    originalTeam?: Team; // Original team before becoming lover (for different team lovers)
     killedBy?: string; // Track death cause for passive triggers
 
     // Werewolf status

@@ -6,3 +6,4 @@
 
 export { NightResolver, NightResolutionResult, NightEffect } from './NightResolver';
 export { RoleDataLoader, Scenario, getRoleDataLoader } from './RoleDataLoader';
+export * from './LoversLinkedFateHandler';

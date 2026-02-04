@@ -24,6 +24,9 @@ import { MorningReportModal } from '../src/components/MorningReportModal';
 import { SeerInvestigationResultModal } from '../src/components/SeerInvestigationResultModal';
 import { HunterRevengeModal } from '../src/components/HunterRevengeModal';
 import { VictoryModal } from '../src/components/VictoryModal';
+import { CupidLoversModal } from '../src/components/CupidLoversModal';
+import { PastorBlessModal } from '../src/components/PastorBlessModal';
+import { LoversRevealModal } from '../src/components/LoversRevealModal';
 import { resolveNightEvents } from '../src/engine/NightResolution';
 import { WinResult } from '../src/engine/WinConditionChecker';
 
@@ -101,6 +104,15 @@ export default function GameMasterBoardScreen() {
   const [gameWinner, setGameWinner] = useState<WinResult | null>(null);
   const [showVictoryModal, setShowVictoryModal] = useState(false);
   
+  // Cupid Lovers Modal State
+  const [showCupidModal, setShowCupidModal] = useState(false);
+  const [loversInfo, setLoversInfo] = useState<{ player1Id: string; player2Id: string; player1Name: string; player2Name: string; sameTeam: boolean } | null>(null);
+  const [showLoversReveal, setShowLoversReveal] = useState(false);
+  
+  // Pastor Bless Modal State
+  const [showPastorModal, setShowPastorModal] = useState(false);
+  const [hasUsedBless, setHasUsedBless] = useState(false);
+  
   // Swipe Effect Settings
   const [swipeEffect, setSwipeEffect] = useState<SwipeEffect>('default');
   const [showSwipeEffectPicker, setShowSwipeEffectPicker] = useState(false);
@@ -148,7 +160,7 @@ export default function GameMasterBoardScreen() {
 
   useEffect(() => {
     if (!session) {
-      router.replace('/');
+      router.replace('/(tabs)/game');
     }
   }, [session]);
 
@@ -310,6 +322,19 @@ export default function GameMasterBoardScreen() {
 
   // Skill Modal Handlers
   const handleOpenSkillModal = (actionType?: string) => {
+    // Check for special role-specific modals
+    if (currentRole?.id === 'than_tinh_yeu' && session.currentPhase.number === 1) {
+      // Cupid only acts on Night 1
+      handleOpenCupidModal();
+      return;
+    }
+    
+    if (currentRole?.id === 'muc_su') {
+      // Pastor has special bless modal
+      handleOpenPastorModal();
+      return;
+    }
+    
     const nightAction = getCurrentNightAction();
     if (!nightAction) return;
     
@@ -392,6 +417,61 @@ export default function GameMasterBoardScreen() {
     setShowSkillModal(false);
     setSkillTargets([]);
     setActiveActionType(undefined);
+  };
+
+  // --- CUPID & PASTOR HANDLERS ---
+  
+  const handleOpenCupidModal = () => {
+    setShowCupidModal(true);
+  };
+  
+  const handleConfirmLovers = (player1Id: string, player2Id: string) => {
+    // Record the action for night resolution
+    recordNightAction('than_tinh_yeu', player1Id, 'createLovers');
+    // Record second target in metadata (we'll need to handle this specially)
+    recordNightAction('than_tinh_yeu', player2Id, 'createLovers_target2');
+    
+    // Get player names and team info for reveal modal
+    const player1 = session.players.find(p => p.id === player1Id);
+    const player2 = session.players.find(p => p.id === player2Id);
+    
+    if (player1 && player2) {
+      const role1 = availableRoles.find(r => r.id === player1.roleId);
+      const role2 = availableRoles.find(r => r.id === player2.roleId);
+      const sameTeam = role1?.team === role2?.team;
+      
+      setLoversInfo({
+        player1Id,
+        player2Id,
+        player1Name: player1.name,
+        player2Name: player2.name,
+        sameTeam,
+      });
+      setShowLoversReveal(true);
+    }
+    
+    setShowCupidModal(false);
+  };
+  
+  const handleOpenPastorModal = () => {
+    // Check if bless was already used in history
+    const blessUsedInHistory = session.matchLog.some(l => 
+      l.metadata?.roleId === 'muc_su' && l.metadata?.actionType === 'bless'
+    );
+    setHasUsedBless(blessUsedInHistory);
+    setShowPastorModal(true);
+  };
+  
+  const handleConfirmBless = (targetId: string) => {
+    recordNightAction('muc_su', targetId, 'bless');
+    setHasUsedBless(true);
+    setShowPastorModal(false);
+  };
+  
+  const handleSkipBless = () => {
+    // Skip this night without using bless
+    recordNightAction('muc_su', null, undefined);
+    setShowPastorModal(false);
   };
 
   // --- NAVIGATION HANDLERS ---
@@ -761,7 +841,6 @@ export default function GameMasterBoardScreen() {
           style: 'destructive', 
           onPress: () => {
             clearGame();
-            router.replace('/');
           }
         }
       ]
@@ -1426,6 +1505,40 @@ export default function GameMasterBoardScreen() {
          />
        )}
        
+       {/* CUPID LOVERS MODAL */}
+       <CupidLoversModal
+         visible={showCupidModal}
+         onClose={() => setShowCupidModal(false)}
+         onConfirm={handleConfirmLovers}
+         players={alivePlayers}
+         cupidId={session.players.find(p => p.roleId === 'than_tinh_yeu')?.id || ''}
+         availableRoles={availableRoles}
+       />
+       
+       {/* PASTOR BLESS MODAL */}
+       <PastorBlessModal
+         visible={showPastorModal}
+         onClose={() => setShowPastorModal(false)}
+         onConfirm={handleConfirmBless}
+         onSkip={handleSkipBless}
+         players={alivePlayers}
+         hasUsedBless={hasUsedBless}
+         pastorId={session.players.find(p => p.roleId === 'muc_su')?.id || ''}
+         availableRoles={availableRoles}
+       />
+       
+       {/* LOVERS REVEAL MODAL */}
+       <LoversRevealModal
+         visible={showLoversReveal}
+         onClose={() => {
+           setShowLoversReveal(false);
+           setLoversInfo(null);
+         }}
+         loversInfo={loversInfo}
+         players={session.players}
+         availableRoles={availableRoles}
+       />
+       
        {/* VICTORY MODAL */}
        {showVictoryModal && gameWinner && (
          <VictoryModal
@@ -1441,12 +1554,9 @@ export default function GameMasterBoardScreen() {
            }}
            onEndGame={() => {
              setShowVictoryModal(false);
-             router.dismissAll(); 
-             router.replace('/'); 
-             
-             setTimeout(() => {
-                clearGame();
-             }, 500);
+              
+             clearGame(); 
+
            }}
          />
        )}
