@@ -386,7 +386,7 @@ export const gameMasterStyles = StyleSheet.create({
         paddingBottom: 100,
     },
     gridItem: {
-        width: '31%', // roughly 3 columns
+        width: '100%',
         aspectRatio: 1,
         backgroundColor: '#1F2937',
         borderRadius: 12,
@@ -411,6 +411,24 @@ export const gameMasterStyles = StyleSheet.create({
         fontSize: 12,
         textAlign: 'center',
         fontWeight: '500',
+    },
+    voteCardWrapper: {
+        width: '31%',
+        position: 'relative',
+    },
+    voteBadge: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        backgroundColor: '#10B981',
+        borderRadius: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    voteBadgeText: {
+        color: '#FFF',
+        fontSize: 11,
+        fontWeight: 'bold',
     },
     bottomBar: {
         position: 'absolute',

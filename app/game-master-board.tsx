@@ -162,15 +162,12 @@ export default function GameMasterBoardScreen() {
     if (!session) {
       router.replace('/(tabs)/game');
     }
-  }, [session]);
+  }, [session, router]);
 
-  if (!session) {
-    return <View style={styles.container} />;
-  }
-
-  const scenario = availableScenarios.find((s) => s.id === session.scenarioId);
-  const isNightPhase = session.currentPhase.type === 'NIGHT';
-  const nightSequence = scenario ? getNightSequence(
+  // Calculate derived values with safe checks BEFORE useCallback hooks
+  const scenario = session ? availableScenarios.find((s) => s.id === session.scenarioId) : undefined;
+  const isNightPhase = session?.currentPhase.type === 'NIGHT';
+  const nightSequence = scenario && session ? getNightSequence(
        scenario, 
        availableRoles, 
        session.currentPhase.number, 
@@ -178,22 +175,22 @@ export default function GameMasterBoardScreen() {
   ) : [];
   
   const currentRole = isNightPhase ? nightSequence[currentRoleIndex] : null;
-  const alivePlayers = session.players.filter(p => p.isAlive);
+  const alivePlayers = session?.players.filter(p => p.isAlive) || [];
 
   // Physical Card Mode Detection
-  const isPhysicalCardMode = session.mode === 'PHYSICAL_CARD';
-  const isNight1 = session.currentPhase.type === 'NIGHT' && session.currentPhase.number === 1;
+  const isPhysicalCardMode = session?.mode === 'PHYSICAL_CARD';
+  const isNight1 = session?.currentPhase.type === 'NIGHT' && session.currentPhase.number === 1;
   const shouldShowRoleAssignment = isPhysicalCardMode && isNight1;
   const shouldShowViewRole = isPhysicalCardMode && !isNight1 && isNightPhase;
 
-  // Helper functions
+  // Helper functions with safe checks
   const getRoleQuantity = (roleId: string) => {
     const roleDef = scenario?.roles.find(r => r.roleId === roleId);
     return roleDef ? roleDef.quantity : 0;
   };
 
   const getAssignedPlayersForRole = (roleId: string) => {
-    return session.players.filter(p => p.roleId === roleId);
+    return session?.players.filter(p => p.roleId === roleId) || [];
   };
 
   const isRoleFullyAssigned = (roleId: string) => {
@@ -203,7 +200,7 @@ export default function GameMasterBoardScreen() {
   };
 
   const areAllRolesAssigned = () => {
-    return session.players.every(p => p.roleId !== null);
+    return session?.players.every(p => p.roleId !== null) ?? false;
   };
 
   const roleManager = getRoleManager();
@@ -216,7 +213,7 @@ export default function GameMasterBoardScreen() {
 
   const getWolfVictim = () => {
     // Only valid in Night phase
-    if (session.currentPhase.type !== 'NIGHT') return null;
+    if (!session || session.currentPhase.type !== 'NIGHT') return null;
     
     // session.nightActions contains actions for the current night only
     const wolfAction = [...session.nightActions].reverse().find(a => {
@@ -244,14 +241,15 @@ export default function GameMasterBoardScreen() {
        return null; // Victim saved by protection, Witch sees no one dying
     }
     
-    return session.players.find(p => p.id === victimId);
+    return session?.players.find(p => p.id === victimId);
   };
 
   // Win Condition Checking
   const checkWinCondition = () => {
     // Get fresh state explicitly to avoid stale data after state updates
     const currentSession = useGameStore.getState().session;
-    const players = currentSession?.players || session.players;
+    if (!currentSession && !session) return; // No session to check
+    const players = currentSession?.players || session?.players || [];
     const allPlayers = players;
     const alivePlayers = players.filter(p => p.isAlive);
     
@@ -259,15 +257,17 @@ export default function GameMasterBoardScreen() {
     for (const player of allPlayers) {
       if (!player.isAlive && player.killedBy === 'execution') {
         const role = availableRoles.find(r => r.id === player.roleId);
+        
+        // Tanner win
         if (role?.winConditions?.primary === 'dieByExecution' || player.roleId === 'ke_chan_doi') {
-          const winResult: WinResult = {
+          const tannerWin: WinResult = {
             hasWinner: true,
             winnerType: 'individual',
             winner: player.roleId || 'ke_chan_doi',
             winnerPlayerIds: [player.id],
             winCondition: 'dieByExecution',
           };
-          setGameWinner(winResult);
+          setGameWinner(tannerWin);
           setShowVictoryModal(true);
           return;
         }
@@ -286,35 +286,34 @@ export default function GameMasterBoardScreen() {
     });
     
     // Werewolf win: wolves >= non-wolves
-    // Simplified logic for brevity in refactor, keeping original logic intention
     const nonWerewolves = alivePlayers.filter(p => {
        const role = availableRoles.find(r => r.id === p.roleId);
        return role?.team !== 'werewolf';
     });
 
     if (aliveWerewolves.length > 0 && aliveWerewolves.length >= nonWerewolves.length) {
-      const winResult: WinResult = {
+      const werewolfWin: WinResult = {
         hasWinner: true,
         winnerType: 'team',
         winner: 'werewolf',
         winnerPlayerIds: aliveWerewolves.map(p => p.id),
         winCondition: 'werewolfTeamWins',
       };
-      setGameWinner(winResult);
+      setGameWinner(werewolfWin);
       setShowVictoryModal(true);
       return;
     }
     
     // Villager win: all werewolves dead
     if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
-      const winResult: WinResult = {
+      const villagerWin: WinResult = {
         hasWinner: true,
         winnerType: 'team',
         winner: 'villager',
         winnerPlayerIds: aliveVillagers.map(p => p.id),
         winCondition: 'villagerTeamWins',
       };
-      setGameWinner(winResult);
+      setGameWinner(villagerWin);
       setShowVictoryModal(true);
       return;
     }
@@ -323,7 +322,7 @@ export default function GameMasterBoardScreen() {
   // Skill Modal Handlers
   const handleOpenSkillModal = (actionType?: string) => {
     // Check for special role-specific modals
-    if (currentRole?.id === 'than_tinh_yeu' && session.currentPhase.number === 1) {
+    if (currentRole?.id === 'than_tinh_yeu' && session?.currentPhase.number === 1) {
       // Cupid only acts on Night 1
       handleOpenCupidModal();
       return;
@@ -359,6 +358,7 @@ export default function GameMasterBoardScreen() {
   };
 
   const handleConfirmSkillAction = () => {
+    if (!session) return;
     const nightAction = getCurrentNightAction();
     if (!currentRole || !nightAction) return;
     const targetCount = nightAction.targetCount || 1;
@@ -426,6 +426,7 @@ export default function GameMasterBoardScreen() {
   };
   
   const handleConfirmLovers = (player1Id: string, player2Id: string) => {
+    if (!session) return;
     // Record the action for night resolution
     recordNightAction('than_tinh_yeu', player1Id, 'createLovers');
     // Record second target in metadata (we'll need to handle this specially)
@@ -454,6 +455,7 @@ export default function GameMasterBoardScreen() {
   };
   
   const handleOpenPastorModal = () => {
+    if (!session) return;
     // Check if bless was already used in history
     const blessUsedInHistory = session.matchLog.some(l => 
       l.metadata?.roleId === 'muc_su' && l.metadata?.actionType === 'bless'
@@ -477,6 +479,7 @@ export default function GameMasterBoardScreen() {
   // --- NAVIGATION HANDLERS ---
   
   const handleNightEnd = () => {
+     if (!session) return;
      // Prepare the report but do not execute changes yet
      const results = resolveNightEvents(
          session.nightActions,
@@ -491,6 +494,7 @@ export default function GameMasterBoardScreen() {
   };
 
   const handleConfirmMorningReport = () => {
+     if (!session) return;
      // Process deaths
      if (pendingDeadIds.length > 0) {
          processNightDeaths(pendingDeadIds);
@@ -523,6 +527,7 @@ export default function GameMasterBoardScreen() {
   };
 
   const handleNextRole = useCallback(() => {
+    if (!session) return;
     if (isNightPhase) {
       // Logic for Night Role Navigation
       if (shouldShowRoleAssignment && currentRole) {
@@ -619,6 +624,13 @@ export default function GameMasterBoardScreen() {
     }
   }, [currentRoleIndex]);
 
+  // Early return AFTER all hooks to prevent "Rendered fewer hooks than expected" error
+  if (!session) {
+    return <View style={styles.container} />;
+  }
+
+  const lynchedPlayer = lynchTarget ? session.players.find(p => p.id === lynchTarget) : null;
+
   // Role Assignment Handlers
   const handleOpenRoleAssign = () => {
     if (currentRole) {
@@ -698,6 +710,7 @@ export default function GameMasterBoardScreen() {
   };
 
   const handleConfirmLynch = () => {
+    if (!session || !lynchTarget) return;
     if (lynchTarget) {
       const lynched = session.players.find(p => p.id === lynchTarget);
       lynchPlayer(lynchTarget);
@@ -729,6 +742,7 @@ export default function GameMasterBoardScreen() {
   
   // Hunter Revenge Handlers
   const handleHunterShoot = (targetId: string) => {
+    if (!session || !hunterRevengeData) return;
     if (hunterRevengeData) {
       processDeathWithCause(targetId, 'hunter');
       
@@ -749,6 +763,7 @@ export default function GameMasterBoardScreen() {
   };
   
   const handleHunterSkip = () => {
+    if (!session) return;
     setShowHunterRevenge(false);
     setHunterRevengeData(null);
     
@@ -764,8 +779,6 @@ export default function GameMasterBoardScreen() {
     checkWinCondition();
   };
 
-  const lynchedPlayer = lynchTarget ? session.players.find(p => p.id === lynchTarget) : null;
-
   // --- SIDEBAR HANDLERS ---
   const handlePauseGame = () => {
     setIsTimerRunning(false);
@@ -774,6 +787,7 @@ export default function GameMasterBoardScreen() {
   };
 
   const handleRestartGame = () => {
+    if (!session) return;
     Alert.alert(
       'Bắt đầu lại?',
       'Bạn có chắc muốn chơi lại ván này từ đầu? Mọi tiến trình hiện tại sẽ bị xóa.',
