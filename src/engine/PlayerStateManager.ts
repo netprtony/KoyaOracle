@@ -38,6 +38,8 @@ export interface EnhancedPlayerState {
     originalRoleId?: string;
     originalTeam?: Team; // Original team before becoming lover (for different team lovers)
     killedBy?: string; // Track death cause for passive triggers
+    /** Bị Quyến (bi_quyen) transformation state */
+    bewitchedState?: string; // BewitchedState values from types
 
     // Werewolf status
     werewolvesInfected: boolean; // Người Bệnh effect

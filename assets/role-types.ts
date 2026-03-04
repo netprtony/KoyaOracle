@@ -130,6 +130,11 @@ export interface Role {
   winConditions: WinConditions;
   specialRules?: string[];
   nightActionType?: 'selectTarget' | 'none' | string; // UI helper property
+  /**
+   * Companion roles do not occupy a player slot in the scenario builder.
+   * e.g. Kẻ Phản Bội (ke_phan_boi) is assigned at runtime by wolves.
+   */
+  isCompanion?: boolean;
 }
 
 export type RoleId =
@@ -141,6 +146,7 @@ export type RoleId =
   | 'con_bac' | 'dan_lang' | 'thanh_nien_cung' | 'hoang_tu' | 'thi_truong'
   | 'con_lai' | 'khung_bo' | 'nguoi_benh' | 'hon_ma' | 'du_con'
   | 'ke_chan_doi' | 'tien_tri' | 'tien_tri_tap_su' | 'tien_tri_hao_quang'
-  | 'tien_tri_bi_an' | 'nha_ngoai_cam' | 'tham_tu' | 'ke_pha_roi' | 'quan_tro';
+  | 'tien_tri_bi_an' | 'nha_ngoai_cam' | 'tham_tu' | 'ke_pha_roi' | 'quan_tro'
+  | 'bi_quyen';
 
 

@@ -55,10 +55,24 @@ export class WinConditionChecker {
     private checkTeamWins(): WinResult {
         const alivePlayers = this.stateManager.getAlivePlayers();
 
-        const aliveWerewolves = alivePlayers.filter(p => p.team === 'werewolf');
-        const aliveVampires = alivePlayers.filter(p => p.team === 'vampire');
-        const aliveVillagers = alivePlayers.filter(p => p.team === 'villager');
-        const aliveNeutrals = alivePlayers.filter(p => p.team === 'neutral');
+        // Determine effective team for each alive player:
+        //  - Traitor counts as werewolf (hidden wolf allegiance)
+        //  - Bị Quyến counts by their current bewitchedState
+        const getEffectiveTeam = (p: ReturnType<typeof this.stateManager.getAlivePlayers>[0]) => {
+            if (p.isTraitor) return 'werewolf' as const;
+            if (p.roleId === 'bi_quyen') {
+                const bs = (p as any).bewitchedState as string | undefined;
+                if (bs === 'WOLF') return 'werewolf' as const;
+                if (bs === 'VAMPIRE') return 'vampire' as const;
+                return 'villager' as const;
+            }
+            return p.team;
+        };
+
+        const aliveWerewolves = alivePlayers.filter(p => getEffectiveTeam(p) === 'werewolf');
+        const aliveVampires   = alivePlayers.filter(p => getEffectiveTeam(p) === 'vampire');
+        const aliveVillagers  = alivePlayers.filter(p => getEffectiveTeam(p) === 'villager');
+        const aliveNeutrals   = alivePlayers.filter(p => getEffectiveTeam(p) === 'neutral');
 
         // Vampire win: all werewolves and villagers dead
         if (aliveVampires.length > 0 && aliveWerewolves.length === 0 && aliveVillagers.length === 0) {
@@ -72,7 +86,7 @@ export class WinConditionChecker {
         }
 
         // Werewolf win: werewolves >= all non-werewolves
-        const nonWerewolves = alivePlayers.filter(p => p.team !== 'werewolf');
+        const nonWerewolves = alivePlayers.filter(p => getEffectiveTeam(p) !== 'werewolf');
         if (aliveWerewolves.length > 0 && aliveWerewolves.length >= nonWerewolves.length) {
             // Check for Sói Đơn Độc special win
             const soiDonDoc = aliveWerewolves.find(p => p.roleId === 'soi_don_doc');

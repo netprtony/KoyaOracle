@@ -55,6 +55,18 @@ export interface NightOrderDefinition {
 }
 
 // ============================================
+// BEWITCHED STATE
+// ============================================
+
+/** Transformation lifecycle for the Bị Quyến (Bewitched) role. */
+export type BewitchedState =
+    | 'VILLAGER'           // Starting state
+    | 'TRANSFORMING_WOLF'  // Bitten by wolf, transforms next night
+    | 'WOLF'               // Fully transformed into wolf
+    | 'TRANSFORMING_VAMPIRE' // Bitten by vampire, transforms next night
+    | 'VAMPIRE';           // Fully transformed into vampire
+
+// ============================================
 // PLAYER
 // ============================================
 
@@ -67,6 +79,14 @@ export interface Player {
     position: number; // seating order
     killedBy?: 'execution' | 'werewolf' | 'poison' | 'hunter' | 'vampire' | 'other'; // Track death cause for win conditions
     isBlessed?: boolean; // true if blessed by Pastor this night
+    // ── Kẻ Phản Bội (Traitor) ─────────────────────────────────────────────
+    /** Hidden wolf-team allegiance; never shown to village */
+    isTraitor?: boolean;
+    /** Internal team override – counts as 'werewolf' for win checks */
+    traitorTeam?: 'werewolf' | null;
+    // ── Bị Quyến (Bewitched) ──────────────────────────────────────────────
+    bewitchedState?: BewitchedState;
+    bewitchedBittenBy?: 'werewolf' | 'vampire' | null;
 }
 
 // ============================================
@@ -135,7 +155,10 @@ export type LogEntryType =
     | 'GAME_START'
     | 'GAME_EVENT'
     | 'PASTOR_BLESS'
-    | 'MEDIUM_SCRY';
+    | 'MEDIUM_SCRY'
+    | 'TRAITOR_ASSIGNED'
+    | 'BEWITCHED_BITTEN'
+    | 'BEWITCHED_TRANSFORMED';
 
 export interface MatchLogEntry {
     id: string;
@@ -171,6 +194,11 @@ export interface GameSession {
     blessedPlayerId?: string | null;
     // Medium state
     mediumLastResult?: MediumScryResult | null;
+    // Traitor (Kẻ Phản Bội) state
+    traitorPlayerId?: string | null;
+    traitorAssigned?: boolean; // becomes true after Night-1 wolf phase
+    // Bewitched (Bị Quyến) – players who transformed this night (for GM alert)
+    transformedThisNight?: { playerId: string; newTeam: 'werewolf' | 'vampire' }[];
 }
 
 // ============================================
@@ -215,6 +243,11 @@ export interface GameState {
     // Medium
     mediumScry: (targetId: string) => void;
     clearMediumResult: () => void;
+    // Traitor (Kẻ Phản Bội)
+    assignTraitor: (playerId: string) => void;
+    // Bewitched (Bị Quyến)
+    markBewitchedBitten: (playerId: string, killedBy: 'werewolf' | 'vampire') => void;
+    clearTransformedThisNight: () => void;
     // Utility
     resetBlessedPlayers: () => void;
     // History

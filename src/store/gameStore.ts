@@ -69,6 +69,13 @@ export const useGameStore = create<GameState>((set, get) => ({
             players = assignRandomRoles(players, scenario, availableRoles);
         }
 
+        // Initialize Bewitched state for bi_quyen players
+        players = players.map(p =>
+            p.roleId === 'bi_quyen'
+                ? { ...p, bewitchedState: 'VILLAGER' as const }
+                : p
+        );
+
         const now = Date.now();
         const session: GameSession = {
             id: `session_${now}`,
@@ -83,6 +90,9 @@ export const useGameStore = create<GameState>((set, get) => ({
             pastorHasUsedAbility: false,
             blessedPlayerId: null,
             mediumLastResult: null,
+            traitorPlayerId: null,
+            traitorAssigned: false,
+            transformedThisNight: [],
         };
 
         // Add game start log
@@ -369,7 +379,36 @@ export const useGameStore = create<GameState>((set, get) => ({
         const newPhase = advanceToNightPhase(session.currentPhase);
 
         // Reset blessed status on all players for the new night
-        const resetPlayers = session.players.map(p => ({ ...p, isBlessed: false }));
+        // Finalize any Bewitched (bi_quyen) transformations that were pending
+        const transformedThisNight: { playerId: string; newTeam: 'werewolf' | 'vampire' }[] = [];
+
+        const resetPlayers = session.players.map(p => {
+            let updated = { ...p, isBlessed: false };
+            // Finalize TRANSFORMING_WOLF → WOLF
+            if ((p as any).bewitchedState === 'TRANSFORMING_WOLF') {
+                updated = { ...updated, bewitchedState: 'WOLF' as any };
+                transformedThisNight.push({ playerId: p.id, newTeam: 'werewolf' });
+            }
+            // Finalize TRANSFORMING_VAMPIRE → VAMPIRE
+            if ((p as any).bewitchedState === 'TRANSFORMING_VAMPIRE') {
+                updated = { ...updated, bewitchedState: 'VAMPIRE' as any };
+                transformedThisNight.push({ playerId: p.id, newTeam: 'vampire' });
+            }
+            return updated;
+        });
+
+        // Log each transformation
+        transformedThisNight.forEach(({ playerId, newTeam }) => {
+            const player = session.players.find(p => p.id === playerId);
+            if (player) {
+                const teamLabel = newTeam === 'werewolf' ? 'Sói' : 'Ma Cà Rồng';
+                get().addLogEntry({
+                    type: 'BEWITCHED_TRANSFORMED',
+                    message: `Bị Quyến ${player.name} đã biến đổi thành ${teamLabel}`,
+                    metadata: { playerId, newTeam },
+                });
+            }
+        });
 
         set({
             session: {
@@ -379,6 +418,7 @@ export const useGameStore = create<GameState>((set, get) => ({
                 players: resetPlayers,
                 blessedPlayerId: null,
                 mediumLastResult: null,
+                transformedThisNight,
                 updatedAt: Date.now(),
             },
         });
@@ -629,6 +669,80 @@ export const useGameStore = create<GameState>((set, get) => ({
         const { session } = get();
         if (!session) return;
         set({ session: { ...session, mediumLastResult: null, updatedAt: Date.now() } });
+    },
+
+    // ── ASSIGN TRAITOR (Kẻ Phản Bội) ────────────────────────────────────
+    assignTraitor: (playerId: string) => {
+        const { session } = get();
+        if (!session) return;
+        if (session.traitorAssigned) return; // Guard: only once
+
+        const target = session.players.find(p => p.id === playerId);
+        if (!target) return;
+
+        const updatedPlayers = session.players.map(p =>
+            p.id === playerId
+                ? { ...p, isTraitor: true, traitorTeam: 'werewolf' as const }
+                : p
+        );
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                traitorPlayerId: playerId,
+                traitorAssigned: true,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'TRAITOR_ASSIGNED',
+            message: `Kẻ Phản Bội đã được chỉ định (GM only)`,
+            metadata: { roleId: 'ke_phan_boi', targetId: playerId },
+        });
+
+        get().saveGame();
+    },
+
+    // ── MARK BEWITCHED BITTEN (Bị Quyến) ───────────────────────────────
+    markBewitchedBitten: (playerId: string, killedBy: 'werewolf' | 'vampire') => {
+        const { session } = get();
+        if (!session) return;
+
+        const target = session.players.find(p => p.id === playerId);
+        if (!target) return;
+
+        const newState = killedBy === 'werewolf' ? 'TRANSFORMING_WOLF' : 'TRANSFORMING_VAMPIRE';
+
+        const updatedPlayers = session.players.map(p =>
+            p.id === playerId
+                ? { ...p, bewitchedState: newState as any, bewitchedBittenBy: killedBy }
+                : p
+        );
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'BEWITCHED_BITTEN',
+            message: `Bị Quyến ${target.name} bị ${killedBy === 'werewolf' ? 'Sói' : 'Ma Cà Rồng'} cắn – sẽ biến đổi vào đêm sau`,
+            metadata: { playerId, killedBy, newState },
+        });
+
+        get().saveGame();
+    },
+
+    // ── CLEAR TRANSFORMED THIS NIGHT ────────────────────────────────────
+    clearTransformedThisNight: () => {
+        const { session } = get();
+        if (!session) return;
+        set({ session: { ...session, transformedThisNight: [], updatedAt: Date.now() } });
     },
 
     // ── RESET BLESSED STATUS ──────────────────────────────────────────────

@@ -5,6 +5,8 @@
  * regardless of their true team, e.g. Bà Đồng, Mục Sư, Thợ Săn, Ma Sói…
  */
 
+import { BewitchedState } from '../../types';
+
 export type ScanAlignment = 'HUMAN' | 'WEREWOLF' | 'VAMPIRE' | 'NEUTRAL';
 
 /**
@@ -24,6 +26,7 @@ export const HUMAN_MASK_ROLE_IDS: ReadonlySet<string> = new Set([
     'cap_doi',       // Cặp Đôi – depends on partner; default HUMAN
     'than_tinh_yeu', // Thần Tình Yêu
     'ke_phan_boi',   // Kẻ Phản Bội – specially appears as HUMAN per specialRules
+    // bi_quyen is handled dynamically by state (see getSeerScanResultForPlayer)
 ]);
 
 /** Role ids that appear as WEREWOLF when scanned */
@@ -50,12 +53,42 @@ export const VAMPIRE_SCAN_IDS: ReadonlySet<string> = new Set([
 export function getSeerScanResult(roleId: string | null): ScanAlignment {
     if (roleId === null) return 'HUMAN'; // Unknown role – default safe result
 
+    // Bị Quyến pre-transformation → always HUMAN via roleId alone
+    // (dynamic state is handled in getSeerScanResultForPlayer)
+    if (roleId === 'bi_quyen') return 'HUMAN';
+
     if (HUMAN_MASK_ROLE_IDS.has(roleId)) return 'HUMAN';
     if (WEREWOLF_SCAN_IDS.has(roleId))   return 'WEREWOLF';
     if (VAMPIRE_SCAN_IDS.has(roleId))    return 'VAMPIRE';
 
     // Everything else (neutrals, special roles) → HUMAN
     return 'HUMAN';
+}
+
+/**
+ * Dynamic seer scan that takes the player's runtime bewitched state into account.
+ * Use this when a full player object (with `bewitchedState`) is available.
+ */
+export function getSeerScanResultForPlayer(
+    roleId: string | null,
+    bewitchedState?: BewitchedState | null,
+    isTraitor?: boolean
+): ScanAlignment {
+    // Traitor always appears as HUMAN to the seer
+    if (isTraitor) return 'HUMAN';
+
+    // Bị Quyến – result depends on transformation state
+    if (roleId === 'bi_quyen') {
+        switch (bewitchedState) {
+            case 'WOLF':               return 'WEREWOLF';
+            case 'TRANSFORMING_WOLF':  return 'HUMAN'; // not yet transformed
+            case 'VAMPIRE':            return 'VAMPIRE';
+            case 'TRANSFORMING_VAMPIRE': return 'HUMAN';
+            default:                   return 'HUMAN';
+        }
+    }
+
+    return getSeerScanResult(roleId);
 }
 
 /**
@@ -78,3 +111,4 @@ export function isSeerRole(roleId: string | null): boolean {
         roleId === 'tien_tri_bi_an'
     );
 }
+

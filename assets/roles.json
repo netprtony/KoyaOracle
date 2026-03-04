@@ -249,9 +249,10 @@
   {
     "id": "ke_phan_boi",
     "name": "Kẻ Phản Bội",
-    "description": "Vào đêm đầu tiên, Quản Trò sẽ hỏi xem phe Sói chọn ai trở thành Kẻ Phản Bội. Bầy Sói sẽ biểu quyết 1 người chơi bất kỳ bằng cách chỉ vào họ. Người đó sẽ được chỉ định trở thành Kẻ Phản Bội.",
+    "description": "Vào đêm đầu tiên, Quản Trò sẽ hỏi xem phe Sói chọn ai trở thành Kẻ Phản Bội. Bầy Sói sẽ biểu quyết 1 người chơi bất kỳ bằng cách chỉ vào họ. Người đó sẽ được chỉ định trở thành Kẻ Phản Bội. Sói biết Kẻ Phản Bội; Kẻ Phản Bội biết bầy Sói nhưng bầy Sói không biết ai là Kẻ Phản Bội.",
     "team": "werewolf",
     "iconEmoji": "🎭",
+    "isCompanion": true,
     "skills": {
       "passive": {
         "type": "hiddenAllegiance",
@@ -283,6 +284,25 @@
       "transformed": "werewolfTeamWins"
     },
     "specialRules": ["canTransform"]
+  },
+  {
+    "id": "bi_quyen",
+    "name": "Bị Quyến",
+    "description": "Bị Quyến ban đầu thuộc phe Dân Làng. Nếu bị Sói cắn, Bị Quyến không chết mà biến đổi thành Sói vào đêm tiếp theo. Nếu bị Ma Cà Rồng tấn công, sẽ biến thành Ma Cà Rồng. Quản Trò cần chạm nhẹ vào vai Bị Quyến để thông báo trước khi đêm bắt đầu. Tiên Tri soi Bị Quyến trước biến đổi → NHÂN; sau biến đổi → theo phe mới.",
+    "team": "villager",
+    "iconEmoji": "😵",
+    "skills": {
+      "passive": {
+        "type": "transformation",
+        "trigger": "onWerewolfOrVampireAttack",
+        "effect": "becomeAttacker",
+        "delay": "nextNight"
+      }
+    },
+    "winConditions": {
+      "primary": "currentTeamWins"
+    },
+    "specialRules": ["canTransformToWolf", "canTransformToVampire", "appearsHumanBeforeTransformation"]
   },
   {
     "id": "nhan_ban",

@@ -9,6 +9,7 @@ interface RawRole {
     description: string;
     team: string;
     iconEmoji: string;
+    isCompanion?: boolean;
 }
 
 interface RawScenario {
@@ -36,6 +37,7 @@ const ACTION_ROLES: Record<string, NightActionType> = {
     than_tinh_yeu: 'selectTarget',
     thoi_mien: 'selectTarget',
     nhan_ban: 'selectTarget',
+    bi_quyen: 'none', // Bị Quyến – shapeshifter, no night action
     // Add others as needed, default to 'none'
 };
 
@@ -56,6 +58,8 @@ export function loadRoles(): Role[] {
         skills: (raw as any).skills || {},
         winConditions: (raw as any).winConditions || {},
         nightActionType: ACTION_ROLES[raw.id] || 'none',
+        specialRules: (raw as any).specialRules,
+        isCompanion: raw.isCompanion ?? false,
     }));
 }
 

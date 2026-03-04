@@ -30,6 +30,11 @@ export interface NightResult {
     messages: string[];
     /** Maps roleId to result description */
     actionResults: Record<string, string>;
+    /**
+     * Bị Quyến players who were bitten but survived (will transform next night).
+     * The game-master-board should call markBewitchedBitten() for each entry.
+     */
+    bewitchedBitten?: { playerId: string; killedBy: 'werewolf' | 'vampire' }[];
 }
 
 /**
@@ -205,6 +210,37 @@ export function resolveNightEvents(
     // Wolf Targets + Witch Kills
     let finalDeaths = [...new Set([...wolfTargets, ...kills])];
 
+    // Step 7b – Bị Quyến (Bewitched / bi_quyen) immunity
+    // If bi_quyen with state VILLAGER (or unset) is in the death list,
+    // they survive but start transforming instead.
+    const bewitchedBitten: { playerId: string; killedBy: 'werewolf' | 'vampire' }[] = [];
+
+    const processBewitched = (ids: string[], killedBy: 'werewolf' | 'vampire') => {
+        ids.forEach(id => {
+            const player = players.find(p => p.id === id);
+            if (!player) return;
+            const bewitchedState = (player as any).bewitchedState as string | undefined;
+            if (
+                player.roleId === 'bi_quyen' &&
+                (!bewitchedState || bewitchedState === 'VILLAGER')
+            ) {
+                bewitchedBitten.push({ playerId: id, killedBy });
+            }
+        });
+    };
+
+    processBewitched(wolfTargets, 'werewolf');
+    processBewitched(kills.filter(id => !wolfTargets.includes(id)), 'werewolf'); // witch poison
+
+    if (bewitchedBitten.length > 0) {
+        const names = bewitchedBitten
+            .map(b => players.find(p => p.id === b.playerId)?.name ?? b.playerId)
+            .join(', ');
+        messages.push(`${names} bị cắn nhưng không chết – đang biến đổi thành sinh vật mới...`);
+        const bIds = bewitchedBitten.map(b => b.playerId);
+        finalDeaths = finalDeaths.filter(id => !bIds.includes(id));
+    }
+
     // 8. Remove players blessed by Pastor (immune to ALL night kills)
     const blessedIds = players
         .filter(p => (p as any).isBlessed === true)
@@ -237,6 +273,7 @@ export function resolveNightEvents(
         messages,
         actionResults: {
             // Can be populated with specific details if needed
-        }
+        },
+        bewitchedBitten: bewitchedBitten.length > 0 ? bewitchedBitten : undefined,
     };
 }

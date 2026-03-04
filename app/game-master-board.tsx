@@ -28,6 +28,8 @@ import { CupidLoversModal } from '../src/components/CupidLoversModal';
 import { PastorBlessModal } from '../src/components/PastorBlessModal';
 import { MediumScryModal } from '../src/components/MediumScryModal';
 import { LoversRevealModal } from '../src/components/LoversRevealModal';
+import { TraitorSelectModal } from '../src/components/TraitorSelectModal';
+import { BewitchedTransformAlert } from '../src/components/BewitchedTransformAlert';
 import { resolveNightEvents } from '../src/engine/NightResolution';
 import { WinResult } from '../src/engine/WinConditionChecker';
 
@@ -61,6 +63,9 @@ export default function GameMasterBoardScreen() {
     mediumScry,
     clearMediumResult,
     saveMatchToHistory,
+    assignTraitor,
+    markBewitchedBitten,
+    clearTransformedThisNight,
   } = useGameStore();
 
   const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
@@ -96,6 +101,7 @@ export default function GameMasterBoardScreen() {
   const [morningReportVisible, setMorningReportVisible] = useState(false);
   const [morningMessages, setMorningMessages] = useState<string[]>([]);
   const [pendingDeadIds, setPendingDeadIds] = useState<string[]>([]);
+  const [pendingBewitchedBitten, setPendingBewitchedBitten] = useState<{ playerId: string; playerName: string; killedBy: 'werewolf' | 'vampire' }[]>([]);
   
   // Seer Investigation State
   const [showSeerResult, setShowSeerResult] = useState(false);
@@ -120,6 +126,12 @@ export default function GameMasterBoardScreen() {
 
   // Medium Scry Modal State
   const [showMediumModal, setShowMediumModal] = useState(false);
+
+  // Traitor (Kẻ Phản Bội) Modal State
+  const [showTraitorModal, setShowTraitorModal] = useState(false);
+
+  // Bewitched (Bị Quyến) Transform Alert State
+  const [showBewitchedAlert, setShowBewitchedAlert] = useState(false);
   
   // Swipe Effect Settings
   const [swipeEffect, setSwipeEffect] = useState<SwipeEffect>('default');
@@ -259,7 +271,20 @@ export default function GameMasterBoardScreen() {
     if (!currentSession && !session) return; // No session to check
     const players = currentSession?.players || session?.players || [];
     const allPlayers = players;
-    const alivePlayers = players.filter(p => p.isAlive);
+    const freshAlivePlayers = players.filter(p => p.isAlive);
+
+    // Helper: effective team accounting for Traitor and Bị Quyến
+    const effectiveTeam = (player: typeof allPlayers[0]) => {
+      if ((player as any).isTraitor) return 'werewolf';
+      if (player.roleId === 'bi_quyen') {
+        const bs = (player as any).bewitchedState as string | undefined;
+        if (bs === 'WOLF') return 'werewolf';
+        if (bs === 'VAMPIRE') return 'vampire';
+        return 'villager';
+      }
+      const role = availableRoles.find(r => r.id === player.roleId);
+      return role?.team ?? 'villager';
+    };
     
     // Check individual wins
     for (const player of allPlayers) {
@@ -283,21 +308,12 @@ export default function GameMasterBoardScreen() {
     }
     
     // Get team counts
-    const aliveWerewolves = alivePlayers.filter(p => {
-      const role = availableRoles.find(r => r.id === p.roleId);
-      return role?.team === 'werewolf';
-    });
-    
-    const aliveVillagers = alivePlayers.filter(p => {
-      const role = availableRoles.find(r => r.id === p.roleId);
-      return role?.team === 'villager';
-    });
-    
+    const aliveWerewolves = freshAlivePlayers.filter(p => effectiveTeam(p) === 'werewolf');
+    const aliveVillagers  = freshAlivePlayers.filter(p => effectiveTeam(p) === 'villager');
+    const aliveVampires   = freshAlivePlayers.filter(p => effectiveTeam(p) === 'vampire');
+
     // Werewolf win: wolves >= non-wolves
-    const nonWerewolves = alivePlayers.filter(p => {
-       const role = availableRoles.find(r => r.id === p.roleId);
-       return role?.team !== 'werewolf';
-    });
+    const nonWerewolves = freshAlivePlayers.filter(p => effectiveTeam(p) !== 'werewolf');
 
     if (aliveWerewolves.length > 0 && aliveWerewolves.length >= nonWerewolves.length) {
       const werewolfWin: WinResult = {
@@ -313,7 +329,7 @@ export default function GameMasterBoardScreen() {
     }
     
     // Villager win: all werewolves dead
-    if (aliveWerewolves.length === 0 && aliveVillagers.length > 0) {
+    if (aliveWerewolves.length === 0 && aliveVampires.length === 0 && aliveVillagers.length > 0) {
       const villagerWin: WinResult = {
         hasWinner: true,
         winnerType: 'team',
@@ -431,6 +447,18 @@ export default function GameMasterBoardScreen() {
     setShowSkillModal(false);
     setSkillTargets([]);
     setActiveActionType(undefined);
+
+    // Night-1 only: after wolf-team confirms kill, open Traitor selection
+    // if ke_phan_boi is in scenario and not yet assigned
+    const currentRoleObj = availableRoles.find(r => r.id === currentRole.id);
+    if (
+      isNight1 &&
+      currentRoleObj?.team === 'werewolf' &&
+      scenario?.roles.some(r => r.roleId === 'ke_phan_boi') &&
+      !session.traitorAssigned
+    ) {
+      setShowTraitorModal(true);
+    }
   };
 
   // --- CUPID & PASTOR HANDLERS ---
@@ -508,20 +536,49 @@ export default function GameMasterBoardScreen() {
     setShowMediumModal(false);
   };
 
+  // --- TRAITOR HANDLERS ---
+
+  const handleConfirmTraitor = (playerId: string) => {
+    assignTraitor(playerId);
+    // setShowTraitorModal is handled inside the modal's onClose
+  };
+
+  const handleSkipTraitor = () => {
+    // No traitor assigned this game; modal closes itself
+  };
+
+  // --- BEWITCHED ALERT HANDLERS ---
+
+  const handleDismissBewitchedAlert = () => {
+    setShowBewitchedAlert(false);
+    clearTransformedThisNight();
+  };
+
   // --- NAVIGATION HANDLERS ---
   
   const handleNightEnd = () => {
      if (!session) return;
-     // Prepare the report but do not execute changes yet
      const results = resolveNightEvents(
          session.nightActions,
          session.players,
          availableRoles,
          session.players.filter(p => !p.isAlive).map(p => p.id)
      );
-     
+
      setMorningMessages(results.messages);
      setPendingDeadIds(results.deadPlayerIds);
+
+     // Store Bewitched biting info for the GM alert in MorningReportModal
+     if (results.bewitchedBitten && results.bewitchedBitten.length > 0) {
+       setPendingBewitchedBitten(results.bewitchedBitten.map(b => ({
+         playerId: b.playerId,
+         playerName: session.players.find(p => p.id === b.playerId)?.name ?? b.playerId,
+         killedBy: b.killedBy,
+       })));
+     } else {
+       setPendingBewitchedBitten([]);
+     }
+
      setMorningReportVisible(true);
   };
 
@@ -545,6 +602,12 @@ export default function GameMasterBoardScreen() {
            setMorningReportVisible(false);
            return; 
          }
+     }
+
+     // Handle Bewitched (bi_quyen) survivors – call store action and clear state
+     if (pendingBewitchedBitten.length > 0) {
+       pendingBewitchedBitten.forEach(b => markBewitchedBitten(b.playerId, b.killedBy));
+       setPendingBewitchedBitten([]);
      }
      
      setMorningReportVisible(false);
@@ -770,6 +833,11 @@ export default function GameMasterBoardScreen() {
     advanceToNight();
     setCurrentRoleIndex(0);
     setSelectedTargetId(null);
+    // After advancing, check if any Bị Quyến players transformed
+    const freshSession = useGameStore.getState().session;
+    if (freshSession?.transformedThisNight && freshSession.transformedThisNight.length > 0) {
+      setShowBewitchedAlert(true);
+    }
   };
   
   // Hunter Revenge Handlers
@@ -1194,6 +1262,7 @@ export default function GameMasterBoardScreen() {
          visible={morningReportVisible}
          onClose={handleConfirmMorningReport}
          messages={morningMessages}
+         bewitchedBitten={pendingBewitchedBitten}
       />
 
       {/* DUAL ACTION MODAL (for Witch) */}
@@ -1586,6 +1655,27 @@ export default function GameMasterBoardScreen() {
          onClearResult={() => { clearMediumResult(); setShowMediumModal(false); }}
        />
        
+       {/* TRAITOR SELECT MODAL */}
+       <TraitorSelectModal
+         visible={showTraitorModal}
+         onClose={() => setShowTraitorModal(false)}
+         onConfirm={handleConfirmTraitor}
+         onSkip={handleSkipTraitor}
+         players={session.players}
+         availableRoles={availableRoles}
+         wolfPlayerIds={session.players
+           .filter(p => availableRoles.find(r => r.id === p.roleId)?.team === 'werewolf')
+           .map(p => p.id)}
+       />
+
+       {/* BEWITCHED TRANSFORM ALERT */}
+       <BewitchedTransformAlert
+         visible={showBewitchedAlert}
+         onDismiss={handleDismissBewitchedAlert}
+         transforms={useGameStore.getState().session?.transformedThisNight ?? []}
+         players={session.players}
+       />
+
        {/* LOVERS REVEAL MODAL */}
        <LoversRevealModal
          visible={showLoversReveal}
