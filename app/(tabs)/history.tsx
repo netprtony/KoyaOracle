@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useState, useEffect } from 'react';
-import { database, MatchRecord } from '../../src/utils/database';
+import { database, MatchRecord, MatchEventRecord } from '../../src/utils/database';
 import { useGameStore } from '../../src/store/gameStore';
 import { getPhaseDisplay } from '../../src/engine/phaseController';
 
@@ -8,6 +8,7 @@ export default function HistoryScreen() {
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMatch, setSelectedMatch] = useState<MatchRecord | null>(null);
+  const [selectedMatchEvents, setSelectedMatchEvents] = useState<MatchEventRecord[]>([]);
   const { availableScenarios } = useGameStore();
 
   useEffect(() => {
@@ -26,6 +27,21 @@ export default function HistoryScreen() {
     }
   };
 
+  const handleSelectMatch = async (match: MatchRecord) => {
+    setSelectedMatch(match);
+    try {
+      const events = await database.getMatchEvents(match.id);
+      setSelectedMatchEvents(events);
+    } catch {
+      setSelectedMatchEvents([]);
+    }
+  };
+
+  const handleCloseMatch = () => {
+    setSelectedMatch(null);
+    setSelectedMatchEvents([]);
+  };
+
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
     return date.toLocaleDateString('vi-VN', {
@@ -42,24 +58,46 @@ export default function HistoryScreen() {
     return scenario?.name || 'Kịch bản không xác định';
   };
 
+  const getEventLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      GAME_START: '🎮 Trò chơi bắt đầu',
+      PHASE_START: '🔄 Pha mới',
+      ROLE_ACTION: '⚡ Hành động',
+      DEATH: '💀 Tử vong',
+      LYNCH: '⚖️ Treo cổ',
+      GAME_EVENT: '📌 Sự kiện',
+      PASTOR_BLESS: '✝️ Ban phước (Mục Sư)',
+      MEDIUM_SCRY: '🔮 Soi cầu (Bà Đồng)',
+    };
+    return labels[type] ?? type;
+  };
+
+  const getEventColor = (type: string) => {
+    if (type === 'PASTOR_BLESS') return '#fbbf24';
+    if (type === 'MEDIUM_SCRY') return '#a78bfa';
+    if (type === 'DEATH' || type === 'LYNCH') return '#ef4444';
+    if (type === 'PHASE_START') return '#60a5fa';
+    return '#818CF8';
+  };
+
   const renderMatchDetail = () => {
     if (!selectedMatch) return null;
 
     const players = JSON.parse(selectedMatch.playersJson);
-    const logs = JSON.parse(selectedMatch.logJson);
+    const logs = JSON.parse(selectedMatch.logJson) as Array<any>;
 
     return (
       <Modal
         visible={!!selectedMatch}
         animationType="slide"
         transparent
-        onRequestClose={() => setSelectedMatch(null)}
+        onRequestClose={handleCloseMatch}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Chi Tiết Trận Đấu</Text>
-              <TouchableOpacity onPress={() => setSelectedMatch(null)}>
+              <TouchableOpacity onPress={handleCloseMatch}>
                 <Text style={styles.closeBtn}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -110,6 +148,40 @@ export default function HistoryScreen() {
                   <Text style={styles.logMessage}>{entry.message}</Text>
                 </View>
               ))}
+
+              {/* Detailed Event Timeline from match_events */}
+              {selectedMatchEvents.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>📅 Timeline Sự Kiện Chi Tiết</Text>
+                  {selectedMatchEvents.map(ev => (
+                    <View
+                      key={ev.id}
+                      style={[styles.eventEntry, { borderLeftColor: getEventColor(ev.type) }]}
+                    >
+                      <View style={styles.eventHeader}>
+                        <Text style={[styles.eventLabel, { color: getEventColor(ev.type) }]}>
+                          {getEventLabel(ev.type)}
+                        </Text>
+                        <Text style={styles.eventRound}>
+                          {ev.phase} {ev.round}
+                        </Text>
+                      </View>
+                      {ev.detail && (
+                        <Text style={styles.eventDetail}>
+                          {(() => {
+                            try {
+                              const d = JSON.parse(ev.detail!);
+                              if (d.result) return `Kết quả: ${d.result}`;
+                              if (d.targetId) return `Mục tiêu: ${players.find((p:any) => p.id === d.targetId)?.name ?? d.targetId}`;
+                              return '';
+                            } catch { return ''; }
+                          })()}
+                        </Text>
+                      )}
+                    </View>
+                  ))}
+                </>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -139,7 +211,7 @@ export default function HistoryScreen() {
               <TouchableOpacity
                 key={match.id}
                 style={styles.matchCard}
-                onPress={() => setSelectedMatch(match)}
+                onPress={() => handleSelectMatch(match)}
                 activeOpacity={0.7}
               >
                 <View style={styles.matchHeader}>
@@ -345,5 +417,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#D1D5DB',
     lineHeight: 20,
+  },
+  // Event Timeline
+  eventEntry: {
+    backgroundColor: '#0f172a',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+  },
+  eventHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  eventLabel: {
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  eventRound: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  eventDetail: {
+    fontSize: 13,
+    color: '#9CA3AF',
   },
 });

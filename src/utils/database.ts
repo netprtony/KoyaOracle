@@ -33,6 +33,18 @@ export interface SettingRecord {
     value: string;
 }
 
+// Match event record for detailed per-round event log
+export interface MatchEventRecord {
+    id: number;
+    matchId: string;
+    round: number;
+    phase: string; // 'DAY' | 'NIGHT'
+    type: string; // 'PASTOR_BLESS' | 'MEDIUM_SCRY' | 'WOLF_KILL' | 'LYNCH' | ...
+    actorId: string | null;
+    targetId: string | null;
+    detail: string | null; // JSON extra data
+}
+
 /**
  * Database service for SQLite operations
  * Only works on native platforms (iOS/Android)
@@ -109,8 +121,22 @@ class DatabaseService {
                 );
             `);
 
+            await this.db.execAsync(`
+                CREATE TABLE IF NOT EXISTS match_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    match_id TEXT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+                    round INTEGER NOT NULL,
+                    phase TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    actor_id TEXT,
+                    target_id TEXT,
+                    detail TEXT
+                );
+            `);
+
             // Indices
             await this.db.execAsync(`CREATE INDEX IF NOT EXISTS idx_matches_created_at ON matches(created_at);`);
+            await this.db.execAsync(`CREATE INDEX IF NOT EXISTS idx_match_events_match_id ON match_events(match_id);`);
             await this.db.execAsync(`CREATE INDEX IF NOT EXISTS idx_players_name ON players(name);`);
             await this.db.execAsync(`CREATE INDEX IF NOT EXISTS idx_scenarios_created_at ON scenarios(created_at);`);
 
@@ -216,6 +242,69 @@ class DatabaseService {
             createdAt: result.created_at,
             endedAt: result.ended_at,
         };
+    }
+
+    /**
+     * Save match events (detailed per-round log)
+     */
+    async saveMatchEvents(
+        matchId: string,
+        events: Array<{
+            round: number;
+            phase: string;
+            type: string;
+            actorId?: string | null;
+            targetId?: string | null;
+            detail?: Record<string, any> | null;
+        }>
+    ): Promise<void> {
+        if (!this.db) return;
+
+        for (const ev of events) {
+            await this.db.runAsync(
+                `INSERT INTO match_events (match_id, round, phase, type, actor_id, target_id, detail)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                matchId,
+                ev.round,
+                ev.phase,
+                ev.type,
+                ev.actorId ?? null,
+                ev.targetId ?? null,
+                ev.detail ? JSON.stringify(ev.detail) : null
+            );
+        }
+    }
+
+    /**
+     * Get all events for a match
+     */
+    async getMatchEvents(matchId: string): Promise<MatchEventRecord[]> {
+        if (!this.db) return [];
+
+        const result = await this.db.getAllAsync<{
+            id: number;
+            match_id: string;
+            round: number;
+            phase: string;
+            type: string;
+            actor_id: string | null;
+            target_id: string | null;
+            detail: string | null;
+        }>(
+            `SELECT * FROM match_events WHERE match_id = ? ORDER BY id ASC`,
+            matchId
+        );
+
+        return result.map(row => ({
+            id: row.id,
+            matchId: row.match_id,
+            round: row.round,
+            phase: row.phase,
+            type: row.type,
+            actorId: row.actor_id,
+            targetId: row.target_id,
+            detail: row.detail,
+        }));
     }
 
     /**

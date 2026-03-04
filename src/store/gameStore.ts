@@ -7,6 +7,7 @@ import { assignRandomRoles } from '../engine/roleAssignment';
 import { createInitialPhase, advanceToDay as advanceToDayPhase, advanceToNight as advanceToNightPhase } from '../engine/phaseController';
 import { CommandInvoker, getCommandFactory } from '../domain';
 import { storePlayersToDomainState, domainStateToStorePlayers } from './storeAdapter';
+import { isSeerRole } from '../engine/logic/SeerScanLogic';
 
 /**
  * Zustand store for game state management
@@ -79,6 +80,9 @@ export const useGameStore = create<GameState>((set, get) => ({
             nightActions: [],
             createdAt: now,
             updatedAt: now,
+            pastorHasUsedAbility: false,
+            blessedPlayerId: null,
+            mediumLastResult: null,
         };
 
         // Add game start log
@@ -364,11 +368,17 @@ export const useGameStore = create<GameState>((set, get) => ({
 
         const newPhase = advanceToNightPhase(session.currentPhase);
 
+        // Reset blessed status on all players for the new night
+        const resetPlayers = session.players.map(p => ({ ...p, isBlessed: false }));
+
         set({
             session: {
                 ...session,
                 currentPhase: newPhase,
                 nightActions: [], // Clear night actions for new night
+                players: resetPlayers,
+                blessedPlayerId: null,
+                mediumLastResult: null,
                 updatedAt: Date.now(),
             },
         });
@@ -551,5 +561,115 @@ export const useGameStore = create<GameState>((set, get) => ({
             }
         });
         get().saveGame();
+    },
+
+    // ── PASTOR BLESS ──────────────────────────────────────────────────────
+    pastorBless: (targetId: string) => {
+        const { session } = get();
+        if (!session) return;
+        if (session.pastorHasUsedAbility) return; // Guard: one-time only
+
+        const target = session.players.find(p => p.id === targetId);
+        if (!target) return;
+
+        const updatedPlayers = session.players.map(p =>
+            p.id === targetId ? { ...p, isBlessed: true } : p
+        );
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                blessedPlayerId: targetId,
+                pastorHasUsedAbility: true,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'PASTOR_BLESS',
+            message: `Mục Sư đã ban phước cho ${target.name}`,
+            metadata: { roleId: 'muc_su', targetId, actionType: 'bless' },
+        });
+
+        get().saveGame();
+    },
+
+    // ── MEDIUM SCRY ───────────────────────────────────────────────────────
+    mediumScry: (targetId: string) => {
+        const { session } = get();
+        if (!session) return;
+
+        const target = session.players.find(p => p.id === targetId);
+        if (!target) return;
+
+        // Use SeerScanLogic to check if target is a Seer variant
+        const isCorrect = target.isAlive && isSeerRole(target.roleId);
+
+        const result = { targetId, isCorrect };
+
+        set({
+            session: {
+                ...session,
+                mediumLastResult: result,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'MEDIUM_SCRY',
+            message: `Bà Đồng đã soi ${target.name} – ${isCorrect ? '✓ Đúng (Tiên Tri)' : '✗ Sai'}`,
+            metadata: { roleId: 'ba_dong', targetId, result: isCorrect ? 'CORRECT' : 'INCORRECT' },
+        });
+
+        get().saveGame();
+    },
+
+    clearMediumResult: () => {
+        const { session } = get();
+        if (!session) return;
+        set({ session: { ...session, mediumLastResult: null, updatedAt: Date.now() } });
+    },
+
+    // ── RESET BLESSED STATUS ──────────────────────────────────────────────
+    resetBlessedPlayers: () => {
+        const { session } = get();
+        if (!session) return;
+
+        const updatedPlayers = session.players.map(p => ({ ...p, isBlessed: false }));
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                blessedPlayerId: null,
+                updatedAt: Date.now(),
+            },
+        });
+    },
+
+    // ── SAVE MATCH TO HISTORY ─────────────────────────────────────────────
+    saveMatchToHistory: async (winner?: string) => {
+        const { session } = get();
+        if (!session) return;
+
+        try {
+            // Save base match record
+            await database.saveMatch(session, winner);
+
+            // Save detailed events from matchLog
+            if (database.isAvailable()) {
+                const events = session.matchLog.map(entry => ({
+                    round: entry.phase.number,
+                    phase: entry.phase.type,
+                    type: entry.type,
+                    actorId: entry.metadata?.roleId ?? null,
+                    targetId: entry.metadata?.targetId ?? entry.metadata?.playerId ?? null,
+                    detail: entry.metadata ?? null,
+                }));
+                await database.saveMatchEvents(session.id, events);
+            }
+        } catch (err) {
+            console.error('saveMatchToHistory error:', err);
+        }
     },
 }));

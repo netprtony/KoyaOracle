@@ -66,6 +66,7 @@ export interface Player {
     isAlive: boolean;
     position: number; // seating order
     killedBy?: 'execution' | 'werewolf' | 'poison' | 'hunter' | 'vampire' | 'other'; // Track death cause for win conditions
+    isBlessed?: boolean; // true if blessed by Pastor this night
 }
 
 // ============================================
@@ -132,7 +133,9 @@ export type LogEntryType =
     | 'DEATH'
     | 'LYNCH'
     | 'GAME_START'
-    | 'GAME_EVENT';
+    | 'GAME_EVENT'
+    | 'PASTOR_BLESS'
+    | 'MEDIUM_SCRY';
 
 export interface MatchLogEntry {
     id: string;
@@ -147,6 +150,11 @@ export interface MatchLogEntry {
 // GAME SESSION
 // ============================================
 
+export interface MediumScryResult {
+    targetId: string;
+    isCorrect: boolean;
+}
+
 export interface GameSession {
     id: string;
     mode: GameMode;
@@ -158,6 +166,11 @@ export interface GameSession {
     nightActions: NightAction[]; // actions for current night
     createdAt: number;
     updatedAt: number;
+    // Pastor state
+    pastorHasUsedAbility?: boolean;
+    blessedPlayerId?: string | null;
+    // Medium state
+    mediumLastResult?: MediumScryResult | null;
 }
 
 // ============================================
@@ -197,4 +210,13 @@ export interface GameState {
     updateNightOrder: (order: NightOrderDefinition) => void;
     processNightDeaths: (playerIds: string[]) => void;
     processDeathWithCause: (playerId: string, cause: 'execution' | 'werewolf' | 'poison' | 'hunter' | 'vampire' | 'other') => void;
+    // Pastor
+    pastorBless: (targetId: string) => void;
+    // Medium
+    mediumScry: (targetId: string) => void;
+    clearMediumResult: () => void;
+    // Utility
+    resetBlessedPlayers: () => void;
+    // History
+    saveMatchToHistory: (winner?: string) => Promise<void>;
 }

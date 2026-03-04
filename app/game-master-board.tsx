@@ -26,6 +26,7 @@ import { HunterRevengeModal } from '../src/components/HunterRevengeModal';
 import { VictoryModal } from '../src/components/VictoryModal';
 import { CupidLoversModal } from '../src/components/CupidLoversModal';
 import { PastorBlessModal } from '../src/components/PastorBlessModal';
+import { MediumScryModal } from '../src/components/MediumScryModal';
 import { LoversRevealModal } from '../src/components/LoversRevealModal';
 import { resolveNightEvents } from '../src/engine/NightResolution';
 import { WinResult } from '../src/engine/WinConditionChecker';
@@ -56,6 +57,10 @@ export default function GameMasterBoardScreen() {
     clearGame,
     initializeGame,
     updateNightOrder,
+    pastorBless,
+    mediumScry,
+    clearMediumResult,
+    saveMatchToHistory,
   } = useGameStore();
 
   const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
@@ -112,6 +117,9 @@ export default function GameMasterBoardScreen() {
   // Pastor Bless Modal State
   const [showPastorModal, setShowPastorModal] = useState(false);
   const [hasUsedBless, setHasUsedBless] = useState(false);
+
+  // Medium Scry Modal State
+  const [showMediumModal, setShowMediumModal] = useState(false);
   
   // Swipe Effect Settings
   const [swipeEffect, setSwipeEffect] = useState<SwipeEffect>('default');
@@ -333,6 +341,12 @@ export default function GameMasterBoardScreen() {
       handleOpenPastorModal();
       return;
     }
+
+    if (currentRole?.id === 'ba_dong') {
+      // Medium has special scry modal
+      handleOpenMediumModal();
+      return;
+    }
     
     const nightAction = getCurrentNightAction();
     if (!nightAction) return;
@@ -465,15 +479,33 @@ export default function GameMasterBoardScreen() {
   };
   
   const handleConfirmBless = (targetId: string) => {
+    // Use the dedicated pastorBless action (tracks state + isBlessed on player)
+    pastorBless(targetId);
     recordNightAction('muc_su', targetId, 'bless');
     setHasUsedBless(true);
     setShowPastorModal(false);
   };
-  
+
   const handleSkipBless = () => {
     // Skip this night without using bless
     recordNightAction('muc_su', null, undefined);
     setShowPastorModal(false);
+  };
+
+  // ── Medium handlers ────────────────────────────────────────────────────
+  const handleOpenMediumModal = () => {
+    setShowMediumModal(true);
+  };
+
+  const handleConfirmScry = (targetId: string) => {
+    mediumScry(targetId);
+    recordNightAction('ba_dong', targetId, 'detectRole');
+    // Modal stays open to show the result overlay – closed from within MediumScryModal
+  };
+
+  const handleSkipScry = () => {
+    recordNightAction('ba_dong', null, undefined);
+    setShowMediumModal(false);
   };
 
   // --- NAVIGATION HANDLERS ---
@@ -1540,6 +1572,19 @@ export default function GameMasterBoardScreen() {
          pastorId={session.players.find(p => p.roleId === 'muc_su')?.id || ''}
          availableRoles={availableRoles}
        />
+
+       {/* MEDIUM SCRY MODAL */}
+       <MediumScryModal
+         visible={showMediumModal}
+         onClose={() => setShowMediumModal(false)}
+         onScry={handleConfirmScry}
+         onSkip={handleSkipScry}
+         players={alivePlayers}
+         mediumId={session.players.find(p => p.roleId === 'ba_dong')?.id || ''}
+         availableRoles={availableRoles}
+         lastResult={session.mediumLastResult}
+         onClearResult={() => { clearMediumResult(); setShowMediumModal(false); }}
+       />
        
        {/* LOVERS REVEAL MODAL */}
        <LoversRevealModal
@@ -1562,15 +1607,15 @@ export default function GameMasterBoardScreen() {
            availableRoles={availableRoles}
            onContinue={() => setShowVictoryModal(false)}
            onNewGame={() => {
+             saveMatchToHistory(gameWinner.winner ?? 'unknown');
              setShowVictoryModal(false);
              setGameWinner(null);
              clearGame();
            }}
            onEndGame={() => {
+             saveMatchToHistory(gameWinner.winner ?? 'unknown');
              setShowVictoryModal(false);
-              
-             clearGame(); 
-
+             clearGame();
            }}
          />
        )}

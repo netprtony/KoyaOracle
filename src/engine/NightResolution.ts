@@ -203,7 +203,24 @@ export function resolveNightEvents(
 
     // 7. Consolidate Deaths
     // Wolf Targets + Witch Kills
-    const finalDeaths = [...new Set([...wolfTargets, ...kills])];
+    let finalDeaths = [...new Set([...wolfTargets, ...kills])];
+
+    // 8. Remove players blessed by Pastor (immune to ALL night kills)
+    const blessedIds = players
+        .filter(p => (p as any).isBlessed === true)
+        .map(p => p.id);
+
+    if (blessedIds.length > 0) {
+        const savedNames = players
+            .filter(p => blessedIds.includes(p.id) && finalDeaths.includes(p.id))
+            .map(p => p.name);
+
+        finalDeaths = finalDeaths.filter(id => !blessedIds.includes(id));
+
+        if (savedNames.length > 0) {
+            messages.push(`${savedNames.join(', ')} được Mục Sư ban phước – thoát chết đêm nay.`);
+        }
+    }
 
     if (finalDeaths.length === 0) {
         messages.push('Đêm qua bình yên, không ai chết cả.');
