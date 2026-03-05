@@ -92,7 +92,29 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   } else if (winResult.winnerType === 'group' && typeof winResult.winner === 'string') {
     teamInfo = TEAM_INFO[winResult.winner as keyof typeof TEAM_INFO] || TEAM_INFO.neutral;
   } else if (winResult.winnerType === 'individual') {
-    teamInfo = TEAM_INFO.neutral;
+    // For individual (neutral) wins, try to show the specific role info
+    const winnerRole = typeof winResult.winner === 'string'
+      ? availableRoles.find(r => r.id === winResult.winner)
+      : null;
+    if (winnerRole) {
+      teamInfo = {
+        primary: '#f59e0b',
+        bg: '#78350f',
+        icon: winnerRole.iconEmoji || '⚖️',
+        name: winnerRole.name?.toUpperCase() || 'TRUNG LẬP',
+        message: winResult.message || 'Chiến thắng cá nhân!',
+      };
+    } else {
+      teamInfo = {
+        ...TEAM_INFO.neutral,
+        message: winResult.message || TEAM_INFO.neutral.message,
+      };
+    }
+  }
+
+  // For group wins (lovers, cult, twins), also use custom message if available
+  if (winResult.message && winResult.winnerType !== 'individual') {
+    teamInfo = { ...teamInfo, message: winResult.message };
   }
 
   // Get winner players
@@ -102,6 +124,9 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
 
   // Get win condition message
   const getWinConditionMessage = () => {
+    // If a custom message is provided, use it for the condition display
+    if (winResult.message) return winResult.message;
+    
     switch (winResult.winCondition) {
       case 'werewolfTeamWins':
         return 'Số lượng Sói ≥ Dân làng';

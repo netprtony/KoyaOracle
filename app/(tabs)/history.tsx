@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
 import { database, MatchRecord, MatchEventRecord } from '../../src/utils/database';
 import { useGameStore } from '../../src/store/gameStore';
@@ -40,6 +40,58 @@ export default function HistoryScreen() {
   const handleCloseMatch = () => {
     setSelectedMatch(null);
     setSelectedMatchEvents([]);
+  };
+
+  const handleDeleteMatch = (match: MatchRecord) => {
+    Alert.alert(
+      '🗑️ Xóa trận đấu',
+      `Bạn có chắc muốn xóa trận đấu ngày ${formatDate(match.createdAt)}?\n\nHành động này không thể hoàn tác.`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await database.deleteMatch(match.id);
+              setMatches(prev => prev.filter(m => m.id !== match.id));
+              // If we're viewing this match's detail, close it
+              if (selectedMatch?.id === match.id) {
+                handleCloseMatch();
+              }
+            } catch (error) {
+              console.error('Failed to delete match:', error);
+              Alert.alert('Lỗi', 'Không thể xóa trận đấu');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAllMatches = () => {
+    if (matches.length === 0) return;
+    Alert.alert(
+      '🗑️ Xóa tất cả lịch sử',
+      `Bạn có chắc muốn xóa tất cả ${matches.length} trận đấu?\n\nHành động này không thể hoàn tác.`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa tất cả',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await database.deleteAllMatches();
+              setMatches([]);
+              handleCloseMatch();
+            } catch (error) {
+              console.error('Failed to delete all matches:', error);
+              Alert.alert('Lỗi', 'Không thể xóa lịch sử');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatDate = (timestamp: number) => {
@@ -97,9 +149,14 @@ export default function HistoryScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Chi Tiết Trận Đấu</Text>
-              <TouchableOpacity onPress={handleCloseMatch}>
-                <Text style={styles.closeBtn}>✕</Text>
-              </TouchableOpacity>
+              <View style={styles.modalHeaderActions}>
+                <TouchableOpacity onPress={() => handleDeleteMatch(selectedMatch)} style={styles.modalDeleteBtn}>
+                  <Text style={styles.modalDeleteBtnText}>🗑️ Xóa</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleCloseMatch}>
+                  <Text style={styles.closeBtn}>✕</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <ScrollView style={styles.modalBody}>
@@ -193,6 +250,11 @@ export default function HistoryScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>📜 Lịch Sử Trận Đấu</Text>
+        {matches.length > 0 && (
+          <TouchableOpacity style={styles.deleteAllBtn} onPress={handleDeleteAllMatches}>
+            <Text style={styles.deleteAllBtnText}>🗑️ Xóa tất cả</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
@@ -208,26 +270,34 @@ export default function HistoryScreen() {
           matches.map(match => {
             const players = JSON.parse(match.playersJson);
             return (
-              <TouchableOpacity
-                key={match.id}
-                style={styles.matchCard}
-                onPress={() => handleSelectMatch(match)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.matchHeader}>
-                  <Text style={styles.matchScenario}>{getScenarioName(match.scenarioId)}</Text>
-                  <Text style={styles.matchDate}>{formatDate(match.createdAt)}</Text>
-                </View>
-                <View style={styles.matchInfo}>
-                  <Text style={styles.matchMode}>
-                    {match.mode === 'PHYSICAL_CARD' ? '🃏 Physical Card' : '🎲 Random Role'}
-                  </Text>
-                  <Text style={styles.matchPlayers}>👥 {players.length} người chơi</Text>
-                </View>
-                {match.winner && (
-                  <Text style={styles.matchWinner}>🏆 {match.winner}</Text>
-                )}
-              </TouchableOpacity>
+              <View key={match.id} style={styles.matchCardWrapper}>
+                <TouchableOpacity
+                  style={styles.matchCard}
+                  onPress={() => handleSelectMatch(match)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.matchHeader}>
+                    <Text style={styles.matchScenario}>{getScenarioName(match.scenarioId)}</Text>
+                    <Text style={styles.matchDate}>{formatDate(match.createdAt)}</Text>
+                  </View>
+                  <View style={styles.matchInfo}>
+                    <Text style={styles.matchMode}>
+                      {match.mode === 'PHYSICAL_CARD' ? '🃏 Physical Card' : '🎲 Random Role'}
+                    </Text>
+                    <Text style={styles.matchPlayers}>👥 {players.length} người chơi</Text>
+                  </View>
+                  {match.winner && (
+                    <Text style={styles.matchWinner}>🏆 {match.winner}</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.deleteMatchBtn}
+                  onPress={() => handleDeleteMatch(match)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.deleteMatchBtnText}>🗑️</Text>
+                </TouchableOpacity>
+              </View>
             );
           })
         )}
@@ -246,6 +316,9 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
@@ -279,11 +352,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   matchCard: {
+    flex: 1,
     backgroundColor: '#1F2937',
-    borderRadius: 12,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
+    borderRightWidth: 0,
     borderColor: '#374151',
   },
   matchHeader: {
@@ -318,6 +395,56 @@ const styles = StyleSheet.create({
   matchWinner: {
     fontSize: 14,
     color: '#10B981',
+    fontWeight: '600',
+  },
+  deleteAllBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#7f1d1d',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+  },
+  deleteAllBtnText: {
+    fontSize: 13,
+    color: '#fca5a5',
+    fontWeight: '600',
+  },
+  matchCardWrapper: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    marginBottom: 12,
+  },
+  deleteMatchBtn: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 48,
+    backgroundColor: '#7f1d1d',
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderColor: '#ef4444',
+  },
+  deleteMatchBtnText: {
+    fontSize: 18,
+  },
+  modalHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modalDeleteBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#7f1d1d',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+  },
+  modalDeleteBtnText: {
+    fontSize: 13,
+    color: '#fca5a5',
     fontWeight: '600',
   },
   // Modal styles

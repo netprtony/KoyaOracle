@@ -308,11 +308,21 @@ class DatabaseService {
     }
 
     /**
-     * Delete a match
+     * Delete a match and its related events
      */
     async deleteMatch(matchId: string): Promise<void> {
         if (!this.db) return;
+        await this.db.runAsync(`DELETE FROM match_events WHERE match_id = ?`, matchId);
         await this.db.runAsync(`DELETE FROM matches WHERE id = ?`, matchId);
+    }
+
+    /**
+     * Delete all matches and their events
+     */
+    async deleteAllMatches(): Promise<void> {
+        if (!this.db) return;
+        await this.db.runAsync(`DELETE FROM match_events`);
+        await this.db.runAsync(`DELETE FROM matches`);
     }
 
     // ==========================================

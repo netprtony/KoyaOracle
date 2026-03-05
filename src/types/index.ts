@@ -87,6 +87,14 @@ export interface Player {
     // ── Bị Quyến (Bewitched) ──────────────────────────────────────────────
     bewitchedState?: BewitchedState;
     bewitchedBittenBy?: 'werewolf' | 'vampire' | null;
+    // ── Lovers (Cặp Đôi) ──────────────────────────────────────────────────
+    /** True if this player was chosen by Cupid to be a lover */
+    isLover?: boolean;
+    /** Partner's playerId (the other lover) */
+    loverId?: string | null;
+    // ── Cult (Giáo Phái) ────────────────────────────────────────────────────
+    /** True once recruited by Cult Leader */
+    isCultMember?: boolean;
 }
 
 // ============================================
@@ -158,7 +166,10 @@ export type LogEntryType =
     | 'MEDIUM_SCRY'
     | 'TRAITOR_ASSIGNED'
     | 'BEWITCHED_BITTEN'
-    | 'BEWITCHED_TRANSFORMED';
+    | 'BEWITCHED_TRANSFORMED'
+    | 'LOVERS_ASSIGNED'
+    | 'LOVER_GRIEF'
+    | 'CULT_RECRUIT';
 
 export interface MatchLogEntry {
     id: string;
@@ -199,6 +210,14 @@ export interface GameSession {
     traitorAssigned?: boolean; // becomes true after Night-1 wolf phase
     // Bewitched (Bị Quyến) – players who transformed this night (for GM alert)
     transformedThisNight?: { playerId: string; newTeam: 'werewolf' | 'vampire' }[];
+    // Lovers (Cặp Đôi) state
+    loversAssigned?: boolean;
+    lover1Id?: string | null;
+    lover2Id?: string | null;
+    cupidPlayerId?: string | null;
+    // Cult (Giáo Phái) state
+    cultLeaderPlayerId?: string | null;
+    cultMemberIds?: string[];
 }
 
 // ============================================
@@ -248,6 +267,10 @@ export interface GameState {
     // Bewitched (Bị Quyến)
     markBewitchedBitten: (playerId: string, killedBy: 'werewolf' | 'vampire') => void;
     clearTransformedThisNight: () => void;
+    // Lovers (Cặp Đôi)
+    assignLovers: (player1Id: string, player2Id: string) => void;
+    // Cult (Giáo Phái)
+    recruitToCult: (targetId: string) => void;
     // Utility
     resetBlessedPlayers: () => void;
     // History

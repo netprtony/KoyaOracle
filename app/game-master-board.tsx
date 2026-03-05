@@ -30,6 +30,7 @@ import { MediumScryModal } from '../src/components/MediumScryModal';
 import { LoversRevealModal } from '../src/components/LoversRevealModal';
 import { TraitorSelectModal } from '../src/components/TraitorSelectModal';
 import { BewitchedTransformAlert } from '../src/components/BewitchedTransformAlert';
+import { CultRecruitModal } from '../src/components/CultRecruitModal';
 import { resolveNightEvents } from '../src/engine/NightResolution';
 import { WinResult } from '../src/engine/WinConditionChecker';
 
@@ -66,6 +67,8 @@ export default function GameMasterBoardScreen() {
     assignTraitor,
     markBewitchedBitten,
     clearTransformedThisNight,
+    assignLovers,
+    recruitToCult,
   } = useGameStore();
 
   const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
@@ -132,6 +135,9 @@ export default function GameMasterBoardScreen() {
 
   // Bewitched (Bị Quyến) Transform Alert State
   const [showBewitchedAlert, setShowBewitchedAlert] = useState(false);
+
+  // Cult Leader (Chủ Giáo Phái) Modal State
+  const [showCultRecruitModal, setShowCultRecruitModal] = useState(false);
   
   // Swipe Effect Settings
   const [swipeEffect, setSwipeEffect] = useState<SwipeEffect>('default');
@@ -196,6 +202,33 @@ export default function GameMasterBoardScreen() {
   
   const currentRole = isNightPhase ? nightSequence[currentRoleIndex] : null;
   const alivePlayers = session?.players.filter(p => p.isAlive) || [];
+
+  // ── Auto-open Cupid modal when Night 1 reaches Cupid's turn ──────────
+  useEffect(() => {
+    if (
+      currentRole?.id === 'than_tinh_yeu' &&
+      session?.currentPhase.number === 1 &&
+      !session?.loversAssigned &&
+      !showCupidModal &&
+      !showLoversReveal
+    ) {
+      setShowCupidModal(true);
+    }
+  }, [currentRoleIndex, currentRole?.id, session?.currentPhase.number, session?.loversAssigned]);
+
+  // ── Auto-open Cult Leader modal when reaching Cult Leader's turn ──────
+  useEffect(() => {
+    if (
+      currentRole?.id === 'chu_giao_phai' &&
+      !showCultRecruitModal
+    ) {
+      // Only auto-open if leader is alive
+      const leader = session?.players.find(p => p.roleId === 'chu_giao_phai' && p.isAlive);
+      if (leader) {
+        setShowCultRecruitModal(true);
+      }
+    }
+  }, [currentRoleIndex, currentRole?.id]);
 
   // Physical Card Mode Detection
   const isPhysicalCardMode = session?.mode === 'PHYSICAL_CARD';
@@ -299,11 +332,51 @@ export default function GameMasterBoardScreen() {
             winner: player.roleId || 'ke_chan_doi',
             winnerPlayerIds: [player.id],
             winCondition: 'dieByExecution',
+            message: `😔 ${role?.name || 'Kẻ Chán Đời'} (${player.name}) đã bị treo cổ — ước nguyện cuối cùng đã thành!`,
           };
           setGameWinner(tannerWin);
           setShowVictoryModal(true);
           return;
         }
+      }
+    }
+
+    // ── Cult Leader win: all alive non-leader players are cult members ──
+    const cultLeader = freshAlivePlayers.find(p => p.roleId === 'chu_giao_phai');
+    if (cultLeader) {
+      const otherAlive = freshAlivePlayers.filter(p => p.id !== cultLeader.id);
+      if (otherAlive.length > 0 && otherAlive.every(p => p.isCultMember)) {
+        const cultWin: WinResult = {
+          hasWinner: true,
+          winnerType: 'individual',
+          winner: 'chu_giao_phai',
+          winnerPlayerIds: [cultLeader.id],
+          winCondition: 'allAliveBelongToCult',
+          message: `🙏 Chủ Giáo Phái (${cultLeader.name}) đã kết nạp hết tất cả người chơi còn sống vào giáo phái!`,
+        };
+        setGameWinner(cultWin);
+        setShowVictoryModal(true);
+        return;
+      }
+    }
+
+    // ── Lovers win: exactly 2 alive, both are lovers from different teams ──
+    const loversAlive = freshAlivePlayers.filter(p => (p as any).isLover);
+    if (loversAlive.length === 2 && freshAlivePlayers.length === 2) {
+      const lp1 = loversAlive[0];
+      const lp2 = loversAlive[1];
+      if ((lp1 as any).loverId === lp2.id && effectiveTeam(lp1) !== effectiveTeam(lp2)) {
+        const loversWin: WinResult = {
+          hasWinner: true,
+          winnerType: 'team',
+          winner: 'lovers',
+          winnerPlayerIds: [lp1.id, lp2.id],
+          winCondition: 'loversWin',
+          message: `💕 Cặp Đôi ${lp1.name} & ${lp2.name} là 2 người cuối cùng sống sót — tình yêu chiến thắng tất cả!`,
+        };
+        setGameWinner(loversWin);
+        setShowVictoryModal(true);
+        return;
       }
     }
     
@@ -346,9 +419,21 @@ export default function GameMasterBoardScreen() {
   // Skill Modal Handlers
   const handleOpenSkillModal = (actionType?: string) => {
     // Check for special role-specific modals
-    if (currentRole?.id === 'than_tinh_yeu' && session?.currentPhase.number === 1) {
-      // Cupid only acts on Night 1
-      handleOpenCupidModal();
+    if (currentRole?.id === 'than_tinh_yeu') {
+      // Cupid only acts on Night 1, once per game
+      if (session?.currentPhase.number === 1 && !session?.loversAssigned) {
+        handleOpenCupidModal();
+      }
+      // On Night 2+ or after lovers assigned → no-op (firstNightOnly)
+      return;
+    }
+
+    if (currentRole?.id === 'chu_giao_phai') {
+      // Cult Leader recruits every night
+      const leader = session?.players.find(p => p.roleId === 'chu_giao_phai' && p.isAlive);
+      if (leader) {
+        setShowCultRecruitModal(true);
+      }
       return;
     }
     
@@ -469,6 +554,8 @@ export default function GameMasterBoardScreen() {
   
   const handleConfirmLovers = (player1Id: string, player2Id: string) => {
     if (!session) return;
+    // Persist lovers in the store
+    assignLovers(player1Id, player2Id);
     // Record the action for night resolution
     recordNightAction('than_tinh_yeu', player1Id, 'createLovers');
     // Record second target in metadata (we'll need to handle this specially)
@@ -494,6 +581,53 @@ export default function GameMasterBoardScreen() {
     }
     
     setShowCupidModal(false);
+  };
+
+  // --- CULT LEADER HANDLERS ---
+
+  const handleConfirmCultRecruit = (targetId: string) => {
+    if (!session) return;
+    recruitToCult(targetId);
+    recordNightAction('chu_giao_phai', targetId, 'recruit');
+    setShowCultRecruitModal(false);
+
+    // Check cult win immediately after recruit
+    checkCultWin();
+  };
+
+  const handleSkipCultRecruit = () => {
+    recordNightAction('chu_giao_phai', null, undefined);
+    setShowCultRecruitModal(false);
+  };
+
+  /**
+   * Check if Cult Leader has won (all alive non-leader players are members).
+   * Fires after recruit AND after any death.
+   */
+  const checkCultWin = () => {
+    const currentSession = useGameStore.getState().session;
+    if (!currentSession) return;
+    const players = currentSession.players;
+
+    const leader = players.find(p => p.roleId === 'chu_giao_phai' && p.isAlive);
+    if (!leader) return; // Leader dead → cult can never win
+
+    const otherAlive = players.filter(p => p.isAlive && p.id !== leader.id);
+    if (otherAlive.length === 0) return; // Need at least 1 other alive
+
+    const allRecruited = otherAlive.every(p => p.isCultMember);
+    if (allRecruited) {
+      const cultWin: WinResult = {
+        hasWinner: true,
+        winnerType: 'individual',
+        winner: 'chu_giao_phai',
+        winnerPlayerIds: [leader.id],
+        winCondition: 'allAliveBelongToCult',
+        message: `🙏 Chủ Giáo Phái (${leader.name}) đã kết nạp hết tất cả người chơi còn sống vào giáo phái!`,
+      };
+      setGameWinner(cultWin);
+      setShowVictoryModal(true);
+    }
   };
   
   const handleOpenPastorModal = () => {
@@ -586,11 +720,39 @@ export default function GameMasterBoardScreen() {
      if (!session) return;
      // Process deaths
      if (pendingDeadIds.length > 0) {
-         processNightDeaths(pendingDeadIds);
+         // Pre-compute grief victims (lovers whose partner dies tonight)
+         const griefVictimIds: string[] = [];
+         pendingDeadIds.forEach(deadId => {
+           const dead = session.players.find(p => p.id === deadId);
+           if (dead?.isLover && dead.loverId) {
+             const partner = session.players.find(
+               p => p.id === dead.loverId && p.isAlive && !pendingDeadIds.includes(p.id)
+             );
+             if (partner && !griefVictimIds.includes(partner.id)) {
+               griefVictimIds.push(partner.id);
+             }
+           }
+         });
+
+         processNightDeaths(pendingDeadIds); // Store also kills grief victims
          
-         // Check if hunter died - trigger revenge
+         // Show grief alert
+         if (griefVictimIds.length > 0) {
+           const griefNames = griefVictimIds
+             .map(id => session.players.find(p => p.id === id)?.name)
+             .filter(Boolean)
+             .join(', ');
+           Alert.alert(
+             '\ud83d\udc94 Li\u00ean K\u1ebft T\u00ecnh Y\u00eau',
+             `${griefNames} ch\u1ebft theo v\u00ec m\u1ea5t ng\u01b0\u1eddi y\u00eau.`,
+             [{ text: 'OK' }]
+           );
+         }
+
+         // Check if any hunter died (night dead + grief dead) - trigger revenge
+         const allDeadIds = [...pendingDeadIds, ...griefVictimIds];
          const hunterPlayer = session.players.find(p => 
-           pendingDeadIds.includes(p.id) && p.roleId === 'tho_san'
+           allDeadIds.includes(p.id) && p.roleId === 'tho_san'
          );
          
          if (hunterPlayer) {
@@ -808,13 +970,33 @@ export default function GameMasterBoardScreen() {
     if (!session || !lynchTarget) return;
     if (lynchTarget) {
       const lynched = session.players.find(p => p.id === lynchTarget);
+      if (!lynched) return;
+
+      // Pre-compute grief victim
+      const griefPartner = (lynched.isLover && lynched.loverId)
+        ? session.players.find(p => p.id === lynched.loverId && p.isAlive)
+        : null;
+
       lynchPlayer(lynchTarget);
+
+      // Show grief alert
+      if (griefPartner) {
+        Alert.alert(
+          '\ud83d\udc94 Li\u00ean K\u1ebft T\u00ecnh Y\u00eau',
+          `${griefPartner.name} ch\u1ebft theo v\u00ec m\u1ea5t ng\u01b0\u1eddi y\u00eau (${lynched.name}).`,
+          [{ text: 'OK' }]
+        );
+      }
       
-      // Check if lynched player is hunter - trigger revenge
-      if (lynched && lynched.roleId === 'tho_san') {
+      // Check Hunter revenge: lynched person OR grief victim
+      const hunterCandidates = [lynched, griefPartner].filter(
+        (p): p is NonNullable<typeof p> => !!p && p.roleId === 'tho_san'
+      );
+
+      if (hunterCandidates.length > 0) {
         setHunterRevengeData({
-          hunterId: lynched.id,
-          hunterName: lynched.name,
+          hunterId: hunterCandidates[0].id,
+          hunterName: hunterCandidates[0].name,
         });
         setShowHunterRevenge(true);
       } else {
@@ -844,10 +1026,35 @@ export default function GameMasterBoardScreen() {
   const handleHunterShoot = (targetId: string) => {
     if (!session || !hunterRevengeData) return;
     if (hunterRevengeData) {
+      // Pre-compute grief victim of the shot player
+      const shotPlayer = session.players.find(p => p.id === targetId);
+      const griefPartner = (shotPlayer?.isLover && shotPlayer.loverId)
+        ? session.players.find(p => p.id === shotPlayer.loverId && p.isAlive && p.id !== hunterRevengeData.hunterId)
+        : null;
+
       processDeathWithCause(targetId, 'hunter');
       
+      // Show grief alert
+      if (griefPartner) {
+        Alert.alert(
+          '\ud83d\udc94 Li\u00ean K\u1ebft T\u00ecnh Y\u00eau',
+          `${griefPartner.name} ch\u1ebft theo v\u00ec m\u1ea5t ng\u01b0\u1eddi y\u00eau (${shotPlayer!.name}).`,
+          [{ text: 'OK' }]
+        );
+      }
+
       setShowHunterRevenge(false);
       setHunterRevengeData(null);
+
+      // If grief victim is also a Hunter, trigger secondary revenge
+      if (griefPartner?.roleId === 'tho_san') {
+        setHunterRevengeData({
+          hunterId: griefPartner.id,
+          hunterName: griefPartner.name,
+        });
+        setShowHunterRevenge(true);
+        return;
+      }
       
       if (session.currentPhase.type === 'NIGHT') {
         advanceToDay();
@@ -1674,6 +1881,18 @@ export default function GameMasterBoardScreen() {
          onDismiss={handleDismissBewitchedAlert}
          transforms={useGameStore.getState().session?.transformedThisNight ?? []}
          players={session.players}
+       />
+
+       {/* CULT LEADER RECRUIT MODAL */}
+       <CultRecruitModal
+         visible={showCultRecruitModal}
+         onClose={() => setShowCultRecruitModal(false)}
+         onConfirm={handleConfirmCultRecruit}
+         onSkip={handleSkipCultRecruit}
+         players={session.players}
+         cultLeaderId={session.players.find(p => p.roleId === 'chu_giao_phai')?.id || ''}
+         cultMemberIds={session.cultMemberIds ?? []}
+         availableRoles={availableRoles}
        />
 
        {/* LOVERS REVEAL MODAL */}

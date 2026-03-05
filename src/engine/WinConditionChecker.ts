@@ -18,6 +18,7 @@ export interface WinResult {
     winnerPlayerIds?: string[];
     winCondition?: string;
     loversIncluded?: boolean; // Whether lovers are part of the winners
+    message?: string; // Detailed victory message (e.g. which neutral role won and how)
 }
 
 export class WinConditionChecker {

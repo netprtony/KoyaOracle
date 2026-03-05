@@ -93,6 +93,12 @@ export const useGameStore = create<GameState>((set, get) => ({
             traitorPlayerId: null,
             traitorAssigned: false,
             transformedThisNight: [],
+            loversAssigned: false,
+            lover1Id: null,
+            lover2Id: null,
+            cupidPlayerId: null,
+            cultLeaderPlayerId: null,
+            cultMemberIds: [],
         };
 
         // Add game start log
@@ -278,9 +284,21 @@ export const useGameStore = create<GameState>((set, get) => ({
         const player = session.players.find((p) => p.id === playerId);
         if (!player) return;
 
-        const updatedPlayers = session.players.map((p) =>
+        let updatedPlayers = session.players.map((p) =>
             p.id === playerId ? { ...p, isAlive: false, killedBy: 'execution' as const } : p
         );
+
+        // ── Lover grief propagation ─────────────────────────────────────
+        const griefIds: string[] = [];
+        if (player.isLover && player.loverId) {
+            const partner = updatedPlayers.find(p => p.id === player.loverId);
+            if (partner && partner.isAlive) {
+                updatedPlayers = updatedPlayers.map(p =>
+                    p.id === partner.id ? { ...p, isAlive: false, killedBy: 'other' as const } : p
+                );
+                griefIds.push(partner.id);
+            }
+        }
 
         set({
             session: {
@@ -296,6 +314,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             metadata: { playerId },
         });
 
+        griefIds.forEach(id => {
+            const loverPartner = session.players.find(p => p.id === id);
+            if (loverPartner) {
+                get().addLogEntry({
+                    type: 'LOVER_GRIEF',
+                    message: `💔 ${loverPartner.name} chết theo vì mất người yêu`,
+                    metadata: { playerId: id, cause: 'grief' },
+                });
+            }
+        });
+
         get().saveGame();
     },
 
@@ -305,9 +334,24 @@ export const useGameStore = create<GameState>((set, get) => ({
         const { session } = get();
         if (!session || playerIds.length === 0) return;
 
-        const updatedPlayers = session.players.map((p) =>
+        let updatedPlayers = session.players.map((p) =>
             playerIds.includes(p.id) ? { ...p, isAlive: false, killedBy: 'werewolf' as const } : p
         );
+
+        // ── Lover grief propagation ─────────────────────────────────────
+        const griefIds: string[] = [];
+        playerIds.forEach(deadId => {
+            const deadPlayer = session.players.find(p => p.id === deadId);
+            if (deadPlayer?.isLover && deadPlayer.loverId) {
+                const partner = updatedPlayers.find(p => p.id === deadPlayer.loverId);
+                if (partner && partner.isAlive && !playerIds.includes(partner.id) && !griefIds.includes(partner.id)) {
+                    updatedPlayers = updatedPlayers.map(p =>
+                        p.id === partner.id ? { ...p, isAlive: false, killedBy: 'other' as const } : p
+                    );
+                    griefIds.push(partner.id);
+                }
+            }
+        });
 
         set({
             session: {
@@ -329,6 +373,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             }
         });
 
+        griefIds.forEach(id => {
+            const loverPartner = session.players.find(p => p.id === id);
+            if (loverPartner) {
+                get().addLogEntry({
+                    type: 'LOVER_GRIEF',
+                    message: `💔 ${loverPartner.name} chết theo vì mất người yêu`,
+                    metadata: { playerId: id, cause: 'grief' },
+                });
+            }
+        });
+
         get().saveGame();
     },
 
@@ -340,9 +395,21 @@ export const useGameStore = create<GameState>((set, get) => ({
         const player = session.players.find(p => p.id === playerId);
         if (!player) return;
 
-        const updatedPlayers = session.players.map((p) =>
+        let updatedPlayers = session.players.map((p) =>
             p.id === playerId ? { ...p, isAlive: false, killedBy: cause } : p
         );
+
+        // ── Lover grief propagation ─────────────────────────────────────
+        const griefIds: string[] = [];
+        if (player.isLover && player.loverId && cause !== 'other') {
+            const partner = updatedPlayers.find(p => p.id === player.loverId);
+            if (partner && partner.isAlive) {
+                updatedPlayers = updatedPlayers.map(p =>
+                    p.id === partner.id ? { ...p, isAlive: false, killedBy: 'other' as const } : p
+                );
+                griefIds.push(partner.id);
+            }
+        }
 
         set({
             session: {
@@ -366,6 +433,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             type: 'DEATH',
             message: `${player.name} ${causeMessages[cause]}`,
             metadata: { playerId, cause },
+        });
+
+        griefIds.forEach(id => {
+            const loverPartner = session.players.find(p => p.id === id);
+            if (loverPartner) {
+                get().addLogEntry({
+                    type: 'LOVER_GRIEF',
+                    message: `💔 ${loverPartner.name} chết theo vì mất người yêu`,
+                    metadata: { playerId: id, cause: 'grief' },
+                });
+            }
         });
 
         get().saveGame();
@@ -669,6 +747,86 @@ export const useGameStore = create<GameState>((set, get) => ({
         const { session } = get();
         if (!session) return;
         set({ session: { ...session, mediumLastResult: null, updatedAt: Date.now() } });
+    },
+
+    // ── ASSIGN LOVERS (Cặp Đôi) ─────────────────────────────────────────
+    assignLovers: (player1Id: string, player2Id: string) => {
+        const { session } = get();
+        if (!session) return;
+        if (session.loversAssigned) return; // Guard: only once
+
+        const p1 = session.players.find(p => p.id === player1Id);
+        const p2 = session.players.find(p => p.id === player2Id);
+        if (!p1 || !p2) return;
+
+        // Find cupid player
+        const cupid = session.players.find(p => p.roleId === 'than_tinh_yeu' && p.isAlive);
+
+        const updatedPlayers = session.players.map(p => {
+            if (p.id === player1Id) return { ...p, isLover: true, loverId: player2Id };
+            if (p.id === player2Id) return { ...p, isLover: true, loverId: player1Id };
+            return p;
+        });
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                loversAssigned: true,
+                lover1Id: player1Id,
+                lover2Id: player2Id,
+                cupidPlayerId: cupid?.id ?? null,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'LOVERS_ASSIGNED',
+            message: `Thần Tình Yêu đã ghép đôi ${p1.name} & ${p2.name}`,
+            metadata: { player1Id, player2Id, cupidId: cupid?.id },
+        });
+
+        get().saveGame();
+    },
+
+    // ── RECRUIT TO CULT (Chủ Giáo Phái) ─────────────────────────────────
+    recruitToCult: (targetId: string) => {
+        const { session } = get();
+        if (!session) return;
+
+        const currentMembers = session.cultMemberIds ?? [];
+        if (currentMembers.includes(targetId)) return; // already a member
+
+        const target = session.players.find(p => p.id === targetId);
+        if (!target || !target.isAlive) return;
+
+        // Find cult leader
+        const leader = session.players.find(p => p.roleId === 'chu_giao_phai' && p.isAlive);
+        if (!leader) return; // leader dead → can't recruit
+
+        const updatedPlayers = session.players.map(p =>
+            p.id === targetId ? { ...p, isCultMember: true } : p
+        );
+
+        const updatedMembers = [...currentMembers, targetId];
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                cultLeaderPlayerId: leader.id,
+                cultMemberIds: updatedMembers,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'CULT_RECRUIT',
+            message: `Chủ Giáo Phái đã kết nạp ${target.name}`,
+            metadata: { targetId, round: session.currentPhase.number },
+        });
+
+        get().saveGame();
     },
 
     // ── ASSIGN TRAITOR (Kẻ Phản Bội) ────────────────────────────────────

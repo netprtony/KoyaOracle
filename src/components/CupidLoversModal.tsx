@@ -38,7 +38,8 @@ export function CupidLoversModal({
 }: CupidLoversModalProps) {
     const [selectedPlayers, setSelectedPlayers] = useState<string[]>([]);
 
-    const alivePlayers = players.filter(p => p.isAlive && p.id !== cupidId);
+    // Cupid CAN select themselves as one of the two lovers
+    const alivePlayers = players.filter(p => p.isAlive);
 
     const getRoleForPlayer = (player: Player): Role | undefined => {
         return availableRoles.find(r => r.id === player.roleId);
@@ -288,7 +289,6 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     playerList: {
-        flex: 1,
         maxHeight: 350,
     },
     playerListContent: {
