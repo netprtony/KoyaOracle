@@ -720,39 +720,11 @@ export default function GameMasterBoardScreen() {
      if (!session) return;
      // Process deaths
      if (pendingDeadIds.length > 0) {
-         // Pre-compute grief victims (lovers whose partner dies tonight)
-         const griefVictimIds: string[] = [];
-         pendingDeadIds.forEach(deadId => {
-           const dead = session.players.find(p => p.id === deadId);
-           if (dead?.isLover && dead.loverId) {
-             const partner = session.players.find(
-               p => p.id === dead.loverId && p.isAlive && !pendingDeadIds.includes(p.id)
-             );
-             if (partner && !griefVictimIds.includes(partner.id)) {
-               griefVictimIds.push(partner.id);
-             }
-           }
-         });
+         processNightDeaths(pendingDeadIds);
 
-         processNightDeaths(pendingDeadIds); // Store also kills grief victims
-         
-         // Show grief alert
-         if (griefVictimIds.length > 0) {
-           const griefNames = griefVictimIds
-             .map(id => session.players.find(p => p.id === id)?.name)
-             .filter(Boolean)
-             .join(', ');
-           Alert.alert(
-             '\ud83d\udc94 Li\u00ean K\u1ebft T\u00ecnh Y\u00eau',
-             `${griefNames} ch\u1ebft theo v\u00ec m\u1ea5t ng\u01b0\u1eddi y\u00eau.`,
-             [{ text: 'OK' }]
-           );
-         }
-
-         // Check if any hunter died (night dead + grief dead) - trigger revenge
-         const allDeadIds = [...pendingDeadIds, ...griefVictimIds];
+         // Check if any hunter died - trigger revenge
          const hunterPlayer = session.players.find(p => 
-           allDeadIds.includes(p.id) && p.roleId === 'tho_san'
+           pendingDeadIds.includes(p.id) && p.roleId === 'tho_san'
          );
          
          if (hunterPlayer) {
@@ -972,24 +944,10 @@ export default function GameMasterBoardScreen() {
       const lynched = session.players.find(p => p.id === lynchTarget);
       if (!lynched) return;
 
-      // Pre-compute grief victim
-      const griefPartner = (lynched.isLover && lynched.loverId)
-        ? session.players.find(p => p.id === lynched.loverId && p.isAlive)
-        : null;
-
       lynchPlayer(lynchTarget);
 
-      // Show grief alert
-      if (griefPartner) {
-        Alert.alert(
-          '\ud83d\udc94 Li\u00ean K\u1ebft T\u00ecnh Y\u00eau',
-          `${griefPartner.name} ch\u1ebft theo v\u00ec m\u1ea5t ng\u01b0\u1eddi y\u00eau (${lynched.name}).`,
-          [{ text: 'OK' }]
-        );
-      }
-      
-      // Check Hunter revenge: lynched person OR grief victim
-      const hunterCandidates = [lynched, griefPartner].filter(
+      // Check Hunter revenge
+      const hunterCandidates = [lynched].filter(
         (p): p is NonNullable<typeof p> => !!p && p.roleId === 'tho_san'
       );
 
@@ -1027,34 +985,10 @@ export default function GameMasterBoardScreen() {
     if (!session || !hunterRevengeData) return;
     if (hunterRevengeData) {
       // Pre-compute grief victim of the shot player
-      const shotPlayer = session.players.find(p => p.id === targetId);
-      const griefPartner = (shotPlayer?.isLover && shotPlayer.loverId)
-        ? session.players.find(p => p.id === shotPlayer.loverId && p.isAlive && p.id !== hunterRevengeData.hunterId)
-        : null;
-
       processDeathWithCause(targetId, 'hunter');
-      
-      // Show grief alert
-      if (griefPartner) {
-        Alert.alert(
-          '\ud83d\udc94 Li\u00ean K\u1ebft T\u00ecnh Y\u00eau',
-          `${griefPartner.name} ch\u1ebft theo v\u00ec m\u1ea5t ng\u01b0\u1eddi y\u00eau (${shotPlayer!.name}).`,
-          [{ text: 'OK' }]
-        );
-      }
 
       setShowHunterRevenge(false);
       setHunterRevengeData(null);
-
-      // If grief victim is also a Hunter, trigger secondary revenge
-      if (griefPartner?.roleId === 'tho_san') {
-        setHunterRevengeData({
-          hunterId: griefPartner.id,
-          hunterName: griefPartner.name,
-        });
-        setShowHunterRevenge(true);
-        return;
-      }
       
       if (session.currentPhase.type === 'NIGHT') {
         advanceToDay();

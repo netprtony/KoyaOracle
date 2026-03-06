@@ -112,6 +112,15 @@ export default function ScenarioSelectScreen() {
 
   const totalPlayersInNew = selectedRoles.reduce((sum, r) => sum + r.quantity, 0);
 
+  // Filter out non-assignable roles (cap_doi, ke_phan_boi, quan_tro, etc.)
+  const assignableRoles = useMemo(() => {
+    return availableRoles.filter(r => {
+      if (r.specialRules?.includes('cannotBeDirectlyAssigned')) return false;
+      if (r.specialRules?.includes('notPlayableRole')) return false;
+      return true;
+    });
+  }, [availableRoles]);
+
   return (
     <View style={styles.container}>
       <View style={styles.contentContainer}>
@@ -219,7 +228,7 @@ export default function ScenarioSelectScreen() {
               
               <View style={styles.rolesSelector}>
                 <FlatList
-                  data={availableRoles}
+                  data={assignableRoles}
                   keyExtractor={item => item.id}
                   renderItem={({ item }) => {
                     const quantity = selectedRoles.find(r => r.roleId === item.id)?.quantity || 0;

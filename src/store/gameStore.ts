@@ -284,21 +284,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         const player = session.players.find((p) => p.id === playerId);
         if (!player) return;
 
-        let updatedPlayers = session.players.map((p) =>
+        const updatedPlayers = session.players.map((p) =>
             p.id === playerId ? { ...p, isAlive: false, killedBy: 'execution' as const } : p
         );
-
-        // ── Lover grief propagation ─────────────────────────────────────
-        const griefIds: string[] = [];
-        if (player.isLover && player.loverId) {
-            const partner = updatedPlayers.find(p => p.id === player.loverId);
-            if (partner && partner.isAlive) {
-                updatedPlayers = updatedPlayers.map(p =>
-                    p.id === partner.id ? { ...p, isAlive: false, killedBy: 'other' as const } : p
-                );
-                griefIds.push(partner.id);
-            }
-        }
 
         set({
             session: {
@@ -314,16 +302,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             metadata: { playerId },
         });
 
-        griefIds.forEach(id => {
-            const loverPartner = session.players.find(p => p.id === id);
-            if (loverPartner) {
+        // Log lover partner survived (no death propagation)
+        if (player.isLover && player.loverId) {
+            const partner = session.players.find(p => p.id === player.loverId);
+            if (partner && partner.isAlive) {
                 get().addLogEntry({
                     type: 'LOVER_GRIEF',
-                    message: `💔 ${loverPartner.name} chết theo vì mất người yêu`,
-                    metadata: { playerId: id, cause: 'grief' },
+                    message: `💔 ${partner.name} mất đi người yêu nhưng vẫn tiếp tục chiến đấu`,
+                    metadata: { playerId: partner.id, survivorId: partner.id, deceasedId: playerId },
                 });
             }
-        });
+        }
 
         get().saveGame();
     },
@@ -334,24 +323,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         const { session } = get();
         if (!session || playerIds.length === 0) return;
 
-        let updatedPlayers = session.players.map((p) =>
+        const updatedPlayers = session.players.map((p) =>
             playerIds.includes(p.id) ? { ...p, isAlive: false, killedBy: 'werewolf' as const } : p
         );
-
-        // ── Lover grief propagation ─────────────────────────────────────
-        const griefIds: string[] = [];
-        playerIds.forEach(deadId => {
-            const deadPlayer = session.players.find(p => p.id === deadId);
-            if (deadPlayer?.isLover && deadPlayer.loverId) {
-                const partner = updatedPlayers.find(p => p.id === deadPlayer.loverId);
-                if (partner && partner.isAlive && !playerIds.includes(partner.id) && !griefIds.includes(partner.id)) {
-                    updatedPlayers = updatedPlayers.map(p =>
-                        p.id === partner.id ? { ...p, isAlive: false, killedBy: 'other' as const } : p
-                    );
-                    griefIds.push(partner.id);
-                }
-            }
-        });
 
         set({
             session: {
@@ -373,14 +347,18 @@ export const useGameStore = create<GameState>((set, get) => ({
             }
         });
 
-        griefIds.forEach(id => {
-            const loverPartner = session.players.find(p => p.id === id);
-            if (loverPartner) {
-                get().addLogEntry({
-                    type: 'LOVER_GRIEF',
-                    message: `💔 ${loverPartner.name} chết theo vì mất người yêu`,
-                    metadata: { playerId: id, cause: 'grief' },
-                });
+        // Log lover partners survived (no death propagation)
+        playerIds.forEach(deadId => {
+            const deadPlayer = session.players.find(p => p.id === deadId);
+            if (deadPlayer?.isLover && deadPlayer.loverId) {
+                const partner = session.players.find(p => p.id === deadPlayer.loverId);
+                if (partner && partner.isAlive && !playerIds.includes(partner.id)) {
+                    get().addLogEntry({
+                        type: 'LOVER_GRIEF',
+                        message: `💔 ${partner.name} mất đi người yêu nhưng vẫn tiếp tục chiến đấu`,
+                        metadata: { playerId: partner.id, survivorId: partner.id, deceasedId: deadId },
+                    });
+                }
             }
         });
 
@@ -395,21 +373,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         const player = session.players.find(p => p.id === playerId);
         if (!player) return;
 
-        let updatedPlayers = session.players.map((p) =>
+        const updatedPlayers = session.players.map((p) =>
             p.id === playerId ? { ...p, isAlive: false, killedBy: cause } : p
         );
-
-        // ── Lover grief propagation ─────────────────────────────────────
-        const griefIds: string[] = [];
-        if (player.isLover && player.loverId && cause !== 'other') {
-            const partner = updatedPlayers.find(p => p.id === player.loverId);
-            if (partner && partner.isAlive) {
-                updatedPlayers = updatedPlayers.map(p =>
-                    p.id === partner.id ? { ...p, isAlive: false, killedBy: 'other' as const } : p
-                );
-                griefIds.push(partner.id);
-            }
-        }
 
         set({
             session: {
@@ -435,16 +401,17 @@ export const useGameStore = create<GameState>((set, get) => ({
             metadata: { playerId, cause },
         });
 
-        griefIds.forEach(id => {
-            const loverPartner = session.players.find(p => p.id === id);
-            if (loverPartner) {
+        // Log lover partner survived (no death propagation)
+        if (player.isLover && player.loverId && cause !== 'other') {
+            const partner = session.players.find(p => p.id === player.loverId);
+            if (partner && partner.isAlive) {
                 get().addLogEntry({
                     type: 'LOVER_GRIEF',
-                    message: `💔 ${loverPartner.name} chết theo vì mất người yêu`,
-                    metadata: { playerId: id, cause: 'grief' },
+                    message: `💔 ${partner.name} mất đi người yêu nhưng vẫn tiếp tục chiến đấu`,
+                    metadata: { playerId: partner.id, survivorId: partner.id, deceasedId: playerId },
                 });
             }
-        });
+        }
 
         get().saveGame();
     },
