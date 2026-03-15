@@ -30,11 +30,15 @@ export interface NightResult {
     messages: string[];
     /** Maps roleId to result description */
     actionResults: Record<string, string>;
+    /** Per-player cause map for deaths resolved this night (includes cascade deaths) */
+    deathCauses?: Record<string, 'werewolf' | 'poison' | 'lover_heartbreak' | 'tough_guy_scheduled'>;
     /**
      * Bị Quyến players who were bitten but survived (will transform next night).
      * The game-master-board should call markBewitchedBitten() for each entry.
      */
     bewitchedBitten?: { playerId: string; killedBy: 'werewolf' | 'vampire' }[];
+    /** Thanh Niên Cứng bitten by werewolves but will die next night (GM-only persistence hook). */
+    toughGuyBitten?: { playerId: string; bittenNight: number; scheduledNight: number; cause: 'werewolf' }[];
 }
 
 /**
@@ -66,7 +70,8 @@ export function resolveNightEvents(
     actions: NightAction[],
     players: Player[],
     roles: Role[],
-    previousDeadIds: string[] = []
+    previousDeadIds: string[] = [],
+    currentNightNumber?: number
 ): NightResult {
     // 1. Initialize State Manager (Ephemeral for this resolution or utilizing global singleton?)
     // Ideally we should use the existing global state manager if available, 
@@ -104,6 +109,17 @@ export function resolveNightEvents(
     const wolfTargets: string[] = [];
 
     const messages: string[] = [];
+
+    // 0. Process scheduled deaths (Thanh Niên Cứng) due at the start of this night
+    const scheduledDueIds: string[] = [];
+    if (typeof currentNightNumber === 'number') {
+        for (const p of players) {
+            if (!p.isAlive || previousDeadIds.includes(p.id)) continue;
+            if (p.roleId === 'thanh_nien_cung' && (p as any).scheduledDeathNight === currentNightNumber) {
+                scheduledDueIds.push(p.id);
+            }
+        }
+    }
 
     // 3. Filter Valid Actions (Source must be alive)
     const validActions = actions.filter(action => {
@@ -208,7 +224,25 @@ export function resolveNightEvents(
 
     // 7. Consolidate Deaths
     // Wolf Targets + Witch Kills
-    let finalDeaths = [...new Set([...wolfTargets, ...kills])];
+    const poisonTargets = [...kills];
+
+    // Thanh Niên Cứng delayed death (only for werewolf kill, only if not already scheduled)
+    const delayedToughGuyCandidates: string[] = [];
+    const immediateWolfKills: string[] = [];
+    wolfTargets.forEach(id => {
+        const target = players.find(p => p.id === id);
+        const isToughGuy = target?.roleId === 'thanh_nien_cung';
+        const alreadyScheduled = !!(target as any)?.scheduledDeathNight;
+        const alsoPoisoned = poisonTargets.includes(id);
+
+        if (isToughGuy && !alreadyScheduled && !alsoPoisoned && typeof currentNightNumber === 'number') {
+            delayedToughGuyCandidates.push(id);
+        } else {
+            immediateWolfKills.push(id);
+        }
+    });
+
+    let finalDeaths = [...new Set([...immediateWolfKills, ...poisonTargets])];
 
     // Step 7b – Bị Quyến (Bewitched / bi_quyen) immunity
     // If bi_quyen with state VILLAGER (or unset) is in the death list,
@@ -251,6 +285,8 @@ export function resolveNightEvents(
             .filter(p => blessedIds.includes(p.id) && finalDeaths.includes(p.id))
             .map(p => p.name);
 
+        // NOTE: Scheduled deaths (TNC) should NOT be prevented by blessing.
+        // Blessing only affects deaths from current-night attacks.
         finalDeaths = finalDeaths.filter(id => !blessedIds.includes(id));
 
         if (savedNames.length > 0) {
@@ -258,14 +294,102 @@ export function resolveNightEvents(
         }
     }
 
+    // 9. Add scheduled deaths back in (cannot be prevented by night protection)
+    if (scheduledDueIds.length > 0) {
+        const scheduledSet = new Set(scheduledDueIds);
+        finalDeaths = [...scheduledDueIds, ...finalDeaths.filter(id => !scheduledSet.has(id))];
+    }
+
+    // 10. Lovers death-link (linked fate) cascade
+    // IMPORTANT: Only expand from deaths that survived protection filters.
+    const deathCauses: Record<string, 'werewolf' | 'poison' | 'lover_heartbreak' | 'tough_guy_scheduled'> = {};
+    const scheduledSet = new Set(scheduledDueIds);
+    const initialQueue: Array<{ id: string; cause: 'werewolf' | 'poison' | 'tough_guy_scheduled' }> = [];
+
+    for (const id of finalDeaths) {
+        const baseCause = scheduledSet.has(id)
+            ? 'tough_guy_scheduled'
+            : poisonTargets.includes(id)
+                ? 'poison'
+                : 'werewolf';
+
+        deathCauses[id] = baseCause;
+        initialQueue.push({ id, cause: baseCause });
+    }
+
+    const orderedDeaths: string[] = [];
+    const deathSet = new Set<string>();
+    const queue: Array<{ id: string; cause: typeof deathCauses[string] }> = [...initialQueue];
+
+    while (queue.length > 0) {
+        const next = queue.shift()!;
+        if (deathSet.has(next.id)) continue;
+
+        const player = players.find(p => p.id === next.id);
+        if (!player || !player.isAlive || previousDeadIds.includes(player.id)) continue;
+
+        deathSet.add(player.id);
+        orderedDeaths.push(player.id);
+
+        // Preserve existing cause if it was set earlier
+        if (!deathCauses[player.id]) {
+            deathCauses[player.id] = next.cause as any;
+        }
+
+        // Trigger lover death-link (one-way cause guard is implicit via deathSet)
+        if ((player as any).isLover && (player as any).loverId) {
+            const partnerId = (player as any).loverId as string;
+            const partner = players.find(p => p.id === partnerId);
+            if (partner && partner.isAlive && !previousDeadIds.includes(partner.id) && !deathSet.has(partner.id)) {
+                if (!deathCauses[partner.id]) {
+                    deathCauses[partner.id] = 'lover_heartbreak';
+                }
+                queue.push({ id: partner.id, cause: 'lover_heartbreak' });
+            }
+        }
+    }
+
+    // Replace finalDeaths with the cascade-expanded set (stable order)
+    finalDeaths = orderedDeaths;
+
+    // 11. Compute Tough Guy bitten list (only those who survived after cascade)
+    const toughGuyBitten: { playerId: string; bittenNight: number; scheduledNight: number; cause: 'werewolf' }[] = [];
+    if (typeof currentNightNumber === 'number') {
+        const stillAliveAfterCascade = new Set(players.filter(p => p.isAlive).map(p => p.id));
+        for (const id of delayedToughGuyCandidates) {
+            // Must not die tonight (e.g. via lover heartbreak or poison)
+            if (deathSet.has(id)) continue;
+            if (!stillAliveAfterCascade.has(id) || previousDeadIds.includes(id)) continue;
+            toughGuyBitten.push({
+                playerId: id,
+                bittenNight: currentNightNumber,
+                scheduledNight: currentNightNumber + 1,
+                cause: 'werewolf',
+            });
+        }
+    }
+
     if (finalDeaths.length === 0) {
         messages.push('Đêm qua bình yên, không ai chết cả.');
     } else {
-        const names = players
-            .filter(p => finalDeaths.includes(p.id))
-            .map(p => p.name)
-            .join(', ');
-        messages.push(`Đêm qua, ${names} đã chết.`);
+        for (const id of finalDeaths) {
+            const p = players.find(pl => pl.id === id);
+            if (!p) continue;
+            const cause = deathCauses[id];
+            if (cause === 'lover_heartbreak') {
+                const partnerName = players.find(pl => pl.id === (p as any).loverId)?.name;
+                messages.push(`💔 ${p.name} chết vì đau khổ khi mất đi người yêu${partnerName ? ` ${partnerName}` : ''}.`);
+            } else if (cause === 'tough_guy_scheduled') {
+                const bittenNight = (p as any).toughGuyBittenNight;
+                messages.push(
+                    `💀⏱ ${p.name} đã gục ngã${typeof bittenNight === 'number' ? ` (bị cắn từ đêm ${bittenNight})` : ''}.`
+                );
+            } else if (cause === 'poison') {
+                messages.push(`☠️ ${p.name} đã chết — bị đầu độc.`);
+            } else {
+                messages.push(`💀 ${p.name} đã chết — bị Sói cắn.`);
+            }
+        }
     }
 
     return {
@@ -274,6 +398,8 @@ export function resolveNightEvents(
         actionResults: {
             // Can be populated with specific details if needed
         },
+        deathCauses,
         bewitchedBitten: bewitchedBitten.length > 0 ? bewitchedBitten : undefined,
+        toughGuyBitten: toughGuyBitten.length > 0 ? toughGuyBitten : undefined,
     };
 }

@@ -92,6 +92,13 @@ export interface Player {
     isLover?: boolean;
     /** Partner's playerId (the other lover) */
     loverId?: string | null;
+    // ── Thanh Niên Cứng (Delayed Death) ───────────────────────────────────
+    /** Night number when bitten by werewolves (for GM reference) */
+    toughGuyBittenNight?: number | null;
+    /** Night number when the player is scheduled to die (TNC delayed death) */
+    scheduledDeathNight?: number | null;
+    /** Cause that will be used when the scheduled death triggers */
+    scheduledDeathCause?: 'werewolf' | 'vampire' | 'poison' | 'other' | null;
     // ── Cult (Giáo Phái) ────────────────────────────────────────────────────
     /** True once recruited by Cult Leader */
     isCultMember?: boolean;
@@ -169,7 +176,17 @@ export type LogEntryType =
     | 'BEWITCHED_TRANSFORMED'
     | 'LOVERS_ASSIGNED'
     | 'LOVER_GRIEF'
+    | 'LOVER_BROKEN_HEART'
+    | 'TOUGH_GUY_BITTEN'
+    | 'TOUGH_GUY_DIED'
     | 'CULT_RECRUIT';
+
+export interface ScheduledDeath {
+    playerId: string;
+    cause: 'werewolf' | 'vampire' | 'poison' | 'other';
+    bittenNight: number;
+    scheduledNight: number;
+}
 
 export interface MatchLogEntry {
     id: string;
@@ -215,6 +232,8 @@ export interface GameSession {
     lover1Id?: string | null;
     lover2Id?: string | null;
     cupidPlayerId?: string | null;
+    // Tough Guy (Thanh Niên Cứng) state
+    scheduledDeaths?: ScheduledDeath[];
     // Cult (Giáo Phái) state
     cultLeaderPlayerId?: string | null;
     cultMemberIds?: string[];
@@ -255,8 +274,12 @@ export interface GameState {
     addCustomScenario: (name: string, roles: ScenarioRole[]) => Promise<void>;
     deleteCustomScenario: (id: string) => Promise<void>;
     updateNightOrder: (order: NightOrderDefinition) => void;
-    processNightDeaths: (playerIds: string[]) => void;
+    processNightDeaths: (
+        playerIds: string[],
+        deathCauses?: Record<string, 'werewolf' | 'poison' | 'vampire' | 'execution' | 'hunter' | 'other' | 'lover_heartbreak' | 'tough_guy_scheduled'>
+    ) => void;
     processDeathWithCause: (playerId: string, cause: 'execution' | 'werewolf' | 'poison' | 'hunter' | 'vampire' | 'other') => void;
+    markToughGuyBitten: (playerId: string, bittenNight: number, scheduledNight: number) => void;
     // Pastor
     pastorBless: (targetId: string) => void;
     // Medium

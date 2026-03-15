@@ -34,6 +34,7 @@ export function useGameMasterState() {
     saveMatchToHistory,
     assignTraitor,
     markBewitchedBitten,
+    markToughGuyBitten,
     clearTransformedThisNight,
     assignLovers,
     recruitToCult,
@@ -72,6 +73,7 @@ export function useGameMasterState() {
   const [morningReportVisible, setMorningReportVisible] = useState(false);
   const [morningMessages, setMorningMessages] = useState<string[]>([]);
   const [pendingDeadIds, setPendingDeadIds] = useState<string[]>([]);
+  const [pendingDeathCauses, setPendingDeathCauses] = useState<Record<string, any>>({});
   const [pendingBewitchedBitten, setPendingBewitchedBitten] = useState<{ playerId: string; playerName: string; killedBy: 'werewolf' | 'vampire' }[]>([]);
   
   // Seer Investigation State
@@ -664,11 +666,20 @@ export function useGameMasterState() {
          session.nightActions,
          session.players,
          availableRoles,
-         session.players.filter(p => !p.isAlive).map(p => p.id)
+         session.players.filter(p => !p.isAlive).map(p => p.id),
+         session.currentPhase?.number
      );
 
      setMorningMessages(results.messages);
      setPendingDeadIds(results.deadPlayerIds);
+     setPendingDeathCauses(results.deathCauses ?? {});
+
+     // Persist Tough Guy delayed death scheduling (GM-only)
+     if (results.toughGuyBitten && results.toughGuyBitten.length > 0) {
+       results.toughGuyBitten.forEach(tg => {
+         markToughGuyBitten(tg.playerId, tg.bittenNight, tg.scheduledNight);
+       });
+     }
 
      // Store Bewitched biting info for the GM alert in MorningReportModal
      if (results.bewitchedBitten && results.bewitchedBitten.length > 0) {
@@ -688,7 +699,7 @@ export function useGameMasterState() {
      if (!session) return;
      // Process deaths
      if (pendingDeadIds.length > 0) {
-         processNightDeaths(pendingDeadIds);
+       processNightDeaths(pendingDeadIds, pendingDeathCauses);
 
          // Check if any hunter died - trigger revenge
          const hunterPlayer = session.players.find(p => 
@@ -705,6 +716,9 @@ export function useGameMasterState() {
            return; 
          }
      }
+
+     // Clear pending cause map for next night
+     setPendingDeathCauses({});
 
      // Handle Bewitched (bi_quyen) survivors – call store action and clear state
      if (pendingBewitchedBitten.length > 0) {

@@ -97,6 +97,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             lover1Id: null,
             lover2Id: null,
             cupidPlayerId: null,
+            scheduledDeaths: [],
             cultLeaderPlayerId: null,
             cultMemberIds: [],
         };
@@ -284,34 +285,82 @@ export const useGameStore = create<GameState>((set, get) => ({
         const player = session.players.find((p) => p.id === playerId);
         if (!player) return;
 
-        const updatedPlayers = session.players.map((p) =>
-            p.id === playerId ? { ...p, isAlive: false, killedBy: 'execution' as const } : p
-        );
+        type InternalCause = 'execution' | 'lover_heartbreak';
+
+        const causeById: Record<string, InternalCause> = { [playerId]: 'execution' };
+        const order: string[] = [];
+        const deadSet = new Set<string>();
+        const queue: string[] = [playerId];
+
+        while (queue.length > 0) {
+            const id = queue.shift()!;
+            if (deadSet.has(id)) continue;
+            const p = session.players.find(x => x.id === id);
+            if (!p || !p.isAlive) continue;
+
+            deadSet.add(id);
+            order.push(id);
+
+            // Lovers death-link
+            if (p.isLover && p.loverId) {
+                const partner = session.players.find(x => x.id === p.loverId);
+                if (partner && partner.isAlive && !deadSet.has(partner.id)) {
+                    if (!causeById[partner.id]) causeById[partner.id] = 'lover_heartbreak';
+                    queue.push(partner.id);
+                }
+            }
+        }
+
+        const updatedPlayers = session.players.map(p => {
+            if (!deadSet.has(p.id)) return p;
+            const internal = causeById[p.id] ?? 'execution';
+            const killedBy = internal === 'lover_heartbreak' ? ('other' as const) : ('execution' as const);
+            const next: Player = {
+                ...p,
+                isAlive: false,
+                killedBy,
+            };
+
+            // Cleanup Tough Guy scheduled death if they die before/at schedule
+            if (next.roleId === 'thanh_nien_cung' && (next as any).scheduledDeathNight != null) {
+                (next as any).scheduledDeathNight = null;
+                (next as any).toughGuyBittenNight = null;
+                (next as any).scheduledDeathCause = null;
+            }
+
+            return next;
+        });
+
+        const cleanedScheduledDeaths = (session.scheduledDeaths ?? []).filter(d => !deadSet.has(d.playerId));
 
         set({
             session: {
                 ...session,
                 players: updatedPlayers,
+                scheduledDeaths: cleanedScheduledDeaths,
                 updatedAt: Date.now(),
             },
         });
 
+        // Primary lynch log
         get().addLogEntry({
             type: 'LYNCH',
             message: `${player.name} đã bị treo cổ`,
             metadata: { playerId },
         });
 
-        // Log lover partner survived (no death propagation)
-        if (player.isLover && player.loverId) {
-            const partner = session.players.find(p => p.id === player.loverId);
-            if (partner && partner.isAlive) {
-                get().addLogEntry({
-                    type: 'LOVER_GRIEF',
-                    message: `💔 ${partner.name} mất đi người yêu nhưng vẫn tiếp tục chiến đấu`,
-                    metadata: { playerId: partner.id, survivorId: partner.id, deceasedId: playerId },
-                });
-            }
+        // Heartbreak logs (if any)
+        for (const id of order) {
+            if (id === playerId) continue;
+            if (causeById[id] !== 'lover_heartbreak') continue;
+            const p = session.players.find(x => x.id === id);
+            if (!p) continue;
+            const partnerName = session.players.find(x => x.id === p.loverId)?.name;
+            get().addLogEntry({
+                type: 'LOVER_BROKEN_HEART',
+                message: `💔 ${p.name} chết vì đau khổ khi mất đi người yêu${partnerName ? ` ${partnerName}` : ''}`,
+                metadata: { playerId: id, deceasedPartnerId: p.loverId },
+            });
         }
 
         get().saveGame();
@@ -319,47 +368,134 @@ export const useGameStore = create<GameState>((set, get) => ({
 
 
     // Process night deaths
-    processNightDeaths: (playerIds: string[]) => {
+    processNightDeaths: (playerIds: string[], deathCauses) => {
         const { session } = get();
         if (!session || playerIds.length === 0) return;
 
-        const updatedPlayers = session.players.map((p) =>
-            playerIds.includes(p.id) ? { ...p, isAlive: false, killedBy: 'werewolf' as const } : p
-        );
+        type InternalCause = 'werewolf' | 'poison' | 'vampire' | 'execution' | 'hunter' | 'other' | 'lover_heartbreak' | 'tough_guy_scheduled';
+        const causeById: Record<string, InternalCause> = {};
+        playerIds.forEach(id => {
+            const c = deathCauses?.[id] as InternalCause | undefined;
+            causeById[id] = c ?? 'werewolf';
+        });
+
+        // Expand with Lovers death-link (safety net: even if caller didn't include partner)
+        const order: string[] = [];
+        const deadSet = new Set<string>();
+        const queue: string[] = [...playerIds];
+
+        while (queue.length > 0) {
+            const id = queue.shift()!;
+            if (deadSet.has(id)) continue;
+            const p = session.players.find(x => x.id === id);
+            if (!p || !p.isAlive) continue;
+
+            deadSet.add(id);
+            order.push(id);
+
+            if (p.isLover && p.loverId) {
+                const partner = session.players.find(x => x.id === p.loverId);
+                if (partner && partner.isAlive && !deadSet.has(partner.id)) {
+                    if (!causeById[partner.id]) causeById[partner.id] = 'lover_heartbreak';
+                    queue.push(partner.id);
+                }
+            }
+        }
+
+        const mapToKilledBy = (c: InternalCause): Player['killedBy'] => {
+            switch (c) {
+                case 'werewolf':
+                case 'tough_guy_scheduled':
+                    return 'werewolf';
+                case 'poison':
+                    return 'poison';
+                case 'vampire':
+                    return 'vampire';
+                case 'execution':
+                    return 'execution';
+                case 'hunter':
+                    return 'hunter';
+                case 'lover_heartbreak':
+                case 'other':
+                default:
+                    return 'other';
+            }
+        };
+
+        const updatedPlayers = session.players.map(p => {
+            if (!deadSet.has(p.id)) return p;
+            const internal = causeById[p.id] ?? 'werewolf';
+            const next: Player = {
+                ...p,
+                isAlive: false,
+                killedBy: mapToKilledBy(internal),
+            };
+
+            // Cleanup Tough Guy scheduled death if they die before/at schedule
+            if (next.roleId === 'thanh_nien_cung' && (next as any).scheduledDeathNight != null) {
+                (next as any).scheduledDeathNight = null;
+                (next as any).toughGuyBittenNight = null;
+                (next as any).scheduledDeathCause = null;
+            }
+
+            return next;
+        });
+
+        const cleanedScheduledDeaths = (session.scheduledDeaths ?? []).filter(d => !deadSet.has(d.playerId));
 
         set({
             session: {
                 ...session,
                 players: updatedPlayers,
+                scheduledDeaths: cleanedScheduledDeaths,
                 updatedAt: Date.now(),
             },
         });
 
-        // Add log for each death
-        playerIds.forEach(id => {
-            const player = session.players.find(p => p.id === id);
-            if (player) {
-                get().addLogEntry({
-                    type: 'DEATH',
-                    message: `${player.name} đã chết vào ban đêm`,
-                    metadata: { playerId: id },
-                });
-            }
-        });
+        // Add log for each death (with causes)
+        order.forEach(id => {
+            const p = session.players.find(x => x.id === id);
+            if (!p) return;
+            const internal = causeById[id] ?? 'werewolf';
 
-        // Log lover partners survived (no death propagation)
-        playerIds.forEach(deadId => {
-            const deadPlayer = session.players.find(p => p.id === deadId);
-            if (deadPlayer?.isLover && deadPlayer.loverId) {
-                const partner = session.players.find(p => p.id === deadPlayer.loverId);
-                if (partner && partner.isAlive && !playerIds.includes(partner.id)) {
-                    get().addLogEntry({
-                        type: 'LOVER_GRIEF',
-                        message: `💔 ${partner.name} mất đi người yêu nhưng vẫn tiếp tục chiến đấu`,
-                        metadata: { playerId: partner.id, survivorId: partner.id, deceasedId: deadId },
-                    });
-                }
+            if (internal === 'lover_heartbreak') {
+                const partnerName = session.players.find(x => x.id === p.loverId)?.name;
+                get().addLogEntry({
+                    type: 'LOVER_BROKEN_HEART',
+                    message: `💔 ${p.name} chết vì đau khổ khi mất đi người yêu${partnerName ? ` ${partnerName}` : ''}`,
+                    metadata: { playerId: id, deceasedPartnerId: p.loverId },
+                });
+                return;
             }
+
+            if (internal === 'tough_guy_scheduled') {
+                get().addLogEntry({
+                    type: 'TOUGH_GUY_DIED',
+                    message: `💀⏱ ${p.name} đã gục ngã sau khi chiến đấu tới hơi thở cuối cùng`,
+                    metadata: {
+                        playerId: id,
+                        bittenNight: (p as any).toughGuyBittenNight,
+                        deathNight: session.currentPhase?.number,
+                    },
+                });
+                return;
+            }
+
+            const causeMessages = {
+                execution: 'bị treo cổ',
+                werewolf: 'bị sói cắn',
+                poison: 'bị đầu độc',
+                hunter: 'bị thợ săn bắn',
+                vampire: 'bị ma cà rồng hút máu',
+                other: 'đã chết'
+            };
+
+            const killedBy = mapToKilledBy(internal);
+            get().addLogEntry({
+                type: 'DEATH',
+                message: `${p.name} ${causeMessages[killedBy]}`,
+                metadata: { playerId: id, cause: killedBy },
+            });
         });
 
         get().saveGame();
@@ -373,19 +509,56 @@ export const useGameStore = create<GameState>((set, get) => ({
         const player = session.players.find(p => p.id === playerId);
         if (!player) return;
 
-        const updatedPlayers = session.players.map((p) =>
-            p.id === playerId ? { ...p, isAlive: false, killedBy: cause } : p
-        );
+        type InternalCause = typeof cause | 'lover_heartbreak';
+        const causeById: Record<string, InternalCause> = { [playerId]: cause };
+        const order: string[] = [];
+        const deadSet = new Set<string>();
+        const queue: string[] = [playerId];
+
+        while (queue.length > 0) {
+            const id = queue.shift()!;
+            if (deadSet.has(id)) continue;
+            const p = session.players.find(x => x.id === id);
+            if (!p || !p.isAlive) continue;
+
+            deadSet.add(id);
+            order.push(id);
+
+            if (p.isLover && p.loverId) {
+                const partner = session.players.find(x => x.id === p.loverId);
+                if (partner && partner.isAlive && !deadSet.has(partner.id)) {
+                    if (!causeById[partner.id]) causeById[partner.id] = 'lover_heartbreak';
+                    queue.push(partner.id);
+                }
+            }
+        }
+
+        const updatedPlayers = session.players.map(p => {
+            if (!deadSet.has(p.id)) return p;
+            const internal = causeById[p.id] ?? cause;
+            const killedBy = internal === 'lover_heartbreak' ? ('other' as const) : (internal as Player['killedBy']);
+            const next: Player = { ...p, isAlive: false, killedBy };
+
+            if (next.roleId === 'thanh_nien_cung' && (next as any).scheduledDeathNight != null) {
+                (next as any).scheduledDeathNight = null;
+                (next as any).toughGuyBittenNight = null;
+                (next as any).scheduledDeathCause = null;
+            }
+
+            return next;
+        });
+
+        const cleanedScheduledDeaths = (session.scheduledDeaths ?? []).filter(d => !deadSet.has(d.playerId));
 
         set({
             session: {
                 ...session,
                 players: updatedPlayers,
+                scheduledDeaths: cleanedScheduledDeaths,
                 updatedAt: Date.now(),
             },
         });
 
-        // Add log entry
         const causeMessages = {
             execution: 'bị treo cổ',
             werewolf: 'bị sói cắn',
@@ -395,23 +568,74 @@ export const useGameStore = create<GameState>((set, get) => ({
             other: 'đã chết'
         };
 
-        get().addLogEntry({
-            type: 'DEATH',
-            message: `${player.name} ${causeMessages[cause]}`,
-            metadata: { playerId, cause },
+        // Log entries
+        order.forEach(id => {
+            const p = session.players.find(x => x.id === id);
+            if (!p) return;
+            const internal = causeById[id] ?? cause;
+            if (internal === 'lover_heartbreak') {
+                const partnerName = session.players.find(x => x.id === p.loverId)?.name;
+                get().addLogEntry({
+                    type: 'LOVER_BROKEN_HEART',
+                    message: `💔 ${p.name} chết vì đau khổ khi mất đi người yêu${partnerName ? ` ${partnerName}` : ''}`,
+                    metadata: { playerId: id, deceasedPartnerId: p.loverId },
+                });
+                return;
+            }
+
+            get().addLogEntry({
+                type: 'DEATH',
+                message: `${p.name} ${causeMessages[(internal as Player['killedBy']) ?? 'other']}`,
+                metadata: { playerId: id, cause: (internal as Player['killedBy']) ?? 'other' },
+            });
         });
 
-        // Log lover partner survived (no death propagation)
-        if (player.isLover && player.loverId && cause !== 'other') {
-            const partner = session.players.find(p => p.id === player.loverId);
-            if (partner && partner.isAlive) {
-                get().addLogEntry({
-                    type: 'LOVER_GRIEF',
-                    message: `💔 ${partner.name} mất đi người yêu nhưng vẫn tiếp tục chiến đấu`,
-                    metadata: { playerId: partner.id, survivorId: partner.id, deceasedId: playerId },
-                });
-            }
-        }
+        get().saveGame();
+    },
+
+    markToughGuyBitten: (playerId: string, bittenNight: number, scheduledNight: number) => {
+        const { session } = get();
+        if (!session) return;
+
+        const target = session.players.find(p => p.id === playerId);
+        if (!target || !target.isAlive) return;
+
+        // Only applies to Thanh Niên Cứng and only if not already scheduled
+        if (target.roleId !== 'thanh_nien_cung') return;
+        if ((target as any).scheduledDeathNight != null) return;
+
+        const updatedPlayers = session.players.map(p =>
+            p.id === playerId
+                ? {
+                    ...p,
+                    toughGuyBittenNight: bittenNight,
+                    scheduledDeathNight: scheduledNight,
+                    scheduledDeathCause: 'werewolf',
+                }
+                : p
+        );
+
+        const scheduledDeaths = session.scheduledDeaths ?? [];
+        const exists = scheduledDeaths.some(d => d.playerId === playerId);
+        const nextScheduledDeaths = exists
+            ? scheduledDeaths
+            : [...scheduledDeaths, { playerId, cause: 'werewolf', bittenNight, scheduledNight }];
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                scheduledDeaths: nextScheduledDeaths,
+                updatedAt: Date.now(),
+            },
+        });
+
+        // GM-only log (do not announce to players directly)
+        get().addLogEntry({
+            type: 'TOUGH_GUY_BITTEN',
+            message: `💪 ${target.name} bị Sói cắn (đêm ${bittenNight}) nhưng sẽ gục ngã vào đêm ${scheduledNight}`,
+            metadata: { playerId, bittenNight, scheduledNight },
+        });
 
         get().saveGame();
     },

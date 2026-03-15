@@ -36,6 +36,7 @@ export const WEREWOLF_SCAN_IDS: ReadonlySet<string> = new Set([
     'soi_don_doc',
     'soi_an_chay',
     'ma_soi',        // keep if defined
+    'con_lai',        // Con Lai – appears as WEREWOLF to Seer
 ]);
 
 /** Role ids that appear as VAMPIRE when scanned */
