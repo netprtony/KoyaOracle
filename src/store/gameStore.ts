@@ -9,6 +9,15 @@ import { CommandInvoker, getCommandFactory } from '../domain';
 import { storePlayersToDomainState, domainStateToStorePlayers } from './storeAdapter';
 import { isSeerRole } from '../engine/logic/SeerScanLogic';
 
+function buildSpecialRolePointers(players: Player[]) {
+    return {
+        duConPlayerId: players.find(p => p.roleId === 'du_con')?.id ?? null,
+        grandmaPlayerId: players.find(p => p.roleId === 'ba_ngoai')?.id ?? null,
+        redRidingHoodPlayerId: players.find(p => p.roleId === 'khan_do')?.id ?? null,
+        doppelgangerPlayerId: players.find(p => p.roleId === 'nhan_ban')?.id ?? null,
+    };
+}
+
 /**
  * Zustand store for game state management
  */
@@ -69,11 +78,13 @@ export const useGameStore = create<GameState>((set, get) => ({
             players = assignRandomRoles(players, scenario, availableRoles);
         }
 
-        // Initialize Bewitched state for bi_quyen players
+        // Initialize runtime overrides for special roles
         players = players.map(p =>
             p.roleId === 'bi_quyen'
                 ? { ...p, bewitchedState: 'VILLAGER' as const }
-                : p
+                : p.roleId === 'nhan_ban'
+                    ? { ...p, teamOverride: 'villager' as const }
+                    : p
         );
 
         const now = Date.now();
@@ -100,6 +111,18 @@ export const useGameStore = create<GameState>((set, get) => ({
             scheduledDeaths: [],
             cultLeaderPlayerId: null,
             cultMemberIds: [],
+            ...buildSpecialRolePointers(players),
+            duConTarget1Id: null,
+            duConTarget2Id: null,
+            duConTarget1Dead: false,
+            duConTarget2Dead: false,
+            duConAbilityUsed: false,
+            redRidingHoodPowerUnlocked: false,
+            redRidingHoodUnlockRound: null,
+            redRidingHoodRevealedWolves: [],
+            redRidingHoodLastReveal: null,
+            wolfInfectedRound: null,
+            doppelgangerTargetId: null,
         };
 
         // Add game start log
@@ -123,14 +146,21 @@ export const useGameStore = create<GameState>((set, get) => ({
         const { session } = get();
         if (!session) return;
 
-        const updatedPlayers = session.players.map((player) =>
-            player.id === playerId ? { ...player, roleId } : player
-        );
+        const updatedPlayers = session.players.map((player) => {
+            if (player.id !== playerId) return player;
+            if (roleId === 'nhan_ban') {
+                return { ...player, roleId, teamOverride: 'villager', doppelgangerActivated: false, doppelgangerInheritedRole: null };
+            }
+            return { ...player, roleId };
+        });
+
+        const pointers = buildSpecialRolePointers(updatedPlayers);
 
         set({
             session: {
                 ...session,
                 players: updatedPlayers,
+                ...pointers,
                 updatedAt: Date.now(),
             },
         });
@@ -260,11 +290,15 @@ export const useGameStore = create<GameState>((set, get) => ({
         if (!session) return;
 
         const newPhase = advanceToDayPhase(session.currentPhase);
+        const nextWolfInfectedRound = session.wolfInfectedRound === session.currentPhase.number
+            ? null
+            : session.wolfInfectedRound;
 
         set({
             session: {
                 ...session,
                 currentPhase: newPhase,
+                wolfInfectedRound: nextWolfInfectedRound,
                 updatedAt: Date.now(),
             },
         });
@@ -369,7 +403,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     // Process night deaths
     processNightDeaths: (playerIds: string[], deathCauses) => {
-        const { session } = get();
+        const { session, availableRoles } = get();
         if (!session || playerIds.length === 0) return;
 
         type InternalCause = 'werewolf' | 'poison' | 'vampire' | 'execution' | 'hunter' | 'other' | 'lover_heartbreak' | 'tough_guy_scheduled';
@@ -422,7 +456,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             }
         };
 
-        const updatedPlayers = session.players.map(p => {
+        let updatedPlayers = session.players.map(p => {
             if (!deadSet.has(p.id)) return p;
             const internal = causeById[p.id] ?? 'werewolf';
             const next: Player = {
@@ -441,6 +475,75 @@ export const useGameStore = create<GameState>((set, get) => ({
             return next;
         });
 
+        let pastorHasUsedAbility = session.pastorHasUsedAbility;
+        let redRidingHoodPowerUnlocked = session.redRidingHoodPowerUnlocked ?? false;
+        let redRidingHoodUnlockRound = session.redRidingHoodUnlockRound ?? null;
+        const currentRound = session.currentPhase.number;
+        let wolfInfectedRound = session.wolfInfectedRound === currentRound ? null : (session.wolfInfectedRound ?? null);
+
+        const duConTarget1Dead = (session.duConTarget1Dead ?? false) ||
+            (!!session.duConTarget1Id && deadSet.has(session.duConTarget1Id));
+        const duConTarget2Dead = (session.duConTarget2Dead ?? false) ||
+            (!!session.duConTarget2Id && deadSet.has(session.duConTarget2Id));
+
+        let grandmaUnlockedThisNight = false;
+        let sickTriggeredThisNight = false;
+        let doppelgangerInheritedEvent: { actorId: string; targetId: string; inheritedRole: string } | null = null;
+
+        for (const id of order) {
+            const deadPlayer = session.players.find(p => p.id === id);
+            if (!deadPlayer) continue;
+            const cause = causeById[id] ?? 'werewolf';
+
+            if (deadPlayer.roleId === 'ba_ngoai' && cause === 'werewolf') {
+                redRidingHoodPowerUnlocked = true;
+                redRidingHoodUnlockRound = currentRound;
+                grandmaUnlockedThisNight = true;
+            }
+
+            if (deadPlayer.roleId === 'nguoi_benh' && cause === 'werewolf') {
+                wolfInfectedRound = currentRound + 1;
+                sickTriggeredThisNight = true;
+            }
+
+            if (
+                session.doppelgangerTargetId &&
+                id === session.doppelgangerTargetId &&
+                session.doppelgangerPlayerId
+            ) {
+                const dop = updatedPlayers.find(p => p.id === session.doppelgangerPlayerId);
+                if (dop && dop.isAlive) {
+                    let inheritedRole = deadPlayer.roleId || 'dan_lang';
+                    if (inheritedRole === 'nhan_ban') {
+                        inheritedRole = 'dan_lang';
+                    }
+                    const inheritedTeam = availableRoles.find(r => r.id === inheritedRole)?.team ?? 'villager';
+
+                    updatedPlayers = updatedPlayers.map(p =>
+                        p.id === dop.id
+                            ? {
+                                ...p,
+                                roleId: inheritedRole,
+                                teamOverride: inheritedTeam,
+                                doppelgangerActivated: true,
+                                doppelgangerInheritedRole: inheritedRole,
+                            }
+                            : p
+                    );
+
+                    if (inheritedRole === 'muc_su') {
+                        pastorHasUsedAbility = false;
+                    }
+
+                    doppelgangerInheritedEvent = {
+                        actorId: dop.id,
+                        targetId: deadPlayer.id,
+                        inheritedRole,
+                    };
+                }
+            }
+        }
+
         const cleanedScheduledDeaths = (session.scheduledDeaths ?? []).filter(d => !deadSet.has(d.playerId));
 
         set({
@@ -448,6 +551,12 @@ export const useGameStore = create<GameState>((set, get) => ({
                 ...session,
                 players: updatedPlayers,
                 scheduledDeaths: cleanedScheduledDeaths,
+                duConTarget1Dead,
+                duConTarget2Dead,
+                redRidingHoodPowerUnlocked,
+                redRidingHoodUnlockRound,
+                wolfInfectedRound,
+                pastorHasUsedAbility,
                 updatedAt: Date.now(),
             },
         });
@@ -498,12 +607,36 @@ export const useGameStore = create<GameState>((set, get) => ({
             });
         });
 
+        if (grandmaUnlockedThisNight) {
+            get().addLogEntry({
+                type: 'RED_RIDING_HOOD_UNLOCKED',
+                message: '👵 Bà Ngoại bị Sói giết - Khăn Đỏ mở khóa sức mạnh từ đêm sau.',
+                metadata: { round: currentRound },
+            });
+        }
+
+        if (sickTriggeredThisNight) {
+            get().addLogEntry({
+                type: 'SICK_PERSON_KILLED',
+                message: '🤒 Người Bệnh bị Sói cắn - bầy Sói sẽ bỏ lượt cắn ở đêm tiếp theo.',
+                metadata: { round: currentRound, wolfInfectedRound },
+            });
+        }
+
+        if (doppelgangerInheritedEvent) {
+            get().addLogEntry({
+                type: 'DOPPELGANGER_INHERITED',
+                message: '👥 Nhân Bản đã kế thừa vai trò của mục tiêu đã chết.',
+                metadata: doppelgangerInheritedEvent,
+            });
+        }
+
         get().saveGame();
     },
 
     // Process death with specific cause (for hunter, poison, vampire, etc.)
     processDeathWithCause: (playerId: string, cause: 'execution' | 'werewolf' | 'poison' | 'hunter' | 'vampire' | 'other') => {
-        const { session } = get();
+        const { session, availableRoles } = get();
         if (!session) return;
 
         const player = session.players.find(p => p.id === playerId);
@@ -533,7 +666,7 @@ export const useGameStore = create<GameState>((set, get) => ({
             }
         }
 
-        const updatedPlayers = session.players.map(p => {
+        let updatedPlayers = session.players.map(p => {
             if (!deadSet.has(p.id)) return p;
             const internal = causeById[p.id] ?? cause;
             const killedBy = internal === 'lover_heartbreak' ? ('other' as const) : (internal as Player['killedBy']);
@@ -548,6 +681,74 @@ export const useGameStore = create<GameState>((set, get) => ({
             return next;
         });
 
+        let pastorHasUsedAbility = session.pastorHasUsedAbility;
+        let redRidingHoodPowerUnlocked = session.redRidingHoodPowerUnlocked ?? false;
+        let redRidingHoodUnlockRound = session.redRidingHoodUnlockRound ?? null;
+        let wolfInfectedRound = session.wolfInfectedRound ?? null;
+        const currentRound = session.currentPhase.number;
+
+        const duConTarget1Dead = (session.duConTarget1Dead ?? false) ||
+            (!!session.duConTarget1Id && deadSet.has(session.duConTarget1Id));
+        const duConTarget2Dead = (session.duConTarget2Dead ?? false) ||
+            (!!session.duConTarget2Id && deadSet.has(session.duConTarget2Id));
+
+        let grandmaUnlocked = false;
+        let sickTriggered = false;
+        let doppelgangerInheritedEvent: { actorId: string; targetId: string; inheritedRole: string } | null = null;
+
+        for (const id of order) {
+            const deadPlayer = session.players.find(p => p.id === id);
+            if (!deadPlayer) continue;
+            const internal = causeById[id] ?? cause;
+
+            if (deadPlayer.roleId === 'ba_ngoai' && internal === 'werewolf') {
+                redRidingHoodPowerUnlocked = true;
+                redRidingHoodUnlockRound = currentRound;
+                grandmaUnlocked = true;
+            }
+
+            if (deadPlayer.roleId === 'nguoi_benh' && internal === 'werewolf') {
+                wolfInfectedRound = currentRound + 1;
+                sickTriggered = true;
+            }
+
+            if (
+                session.doppelgangerTargetId &&
+                id === session.doppelgangerTargetId &&
+                session.doppelgangerPlayerId
+            ) {
+                const dop = updatedPlayers.find(p => p.id === session.doppelgangerPlayerId);
+                if (dop && dop.isAlive) {
+                    let inheritedRole = deadPlayer.roleId || 'dan_lang';
+                    if (inheritedRole === 'nhan_ban') {
+                        inheritedRole = 'dan_lang';
+                    }
+                    const inheritedTeam = availableRoles.find(r => r.id === inheritedRole)?.team ?? 'villager';
+                    updatedPlayers = updatedPlayers.map(p =>
+                        p.id === dop.id
+                            ? {
+                                ...p,
+                                roleId: inheritedRole,
+                                teamOverride: inheritedTeam,
+                                doppelgangerActivated: true,
+                                doppelgangerInheritedRole: inheritedRole,
+                            }
+                            : p
+                    );
+
+                    if (inheritedRole === 'muc_su') {
+                        pastorHasUsedAbility = false;
+                    }
+
+                    doppelgangerInheritedEvent = {
+                        actorId: dop.id,
+                        targetId: deadPlayer.id,
+                        inheritedRole,
+                    };
+                }
+            }
+        }
+
         const cleanedScheduledDeaths = (session.scheduledDeaths ?? []).filter(d => !deadSet.has(d.playerId));
 
         set({
@@ -555,6 +756,12 @@ export const useGameStore = create<GameState>((set, get) => ({
                 ...session,
                 players: updatedPlayers,
                 scheduledDeaths: cleanedScheduledDeaths,
+                duConTarget1Dead,
+                duConTarget2Dead,
+                redRidingHoodPowerUnlocked,
+                redRidingHoodUnlockRound,
+                wolfInfectedRound,
+                pastorHasUsedAbility,
                 updatedAt: Date.now(),
             },
         });
@@ -589,6 +796,30 @@ export const useGameStore = create<GameState>((set, get) => ({
                 metadata: { playerId: id, cause: (internal as Player['killedBy']) ?? 'other' },
             });
         });
+
+        if (grandmaUnlocked) {
+            get().addLogEntry({
+                type: 'RED_RIDING_HOOD_UNLOCKED',
+                message: '👵 Bà Ngoại bị Sói giết - Khăn Đỏ mở khóa sức mạnh từ đêm sau.',
+                metadata: { round: currentRound },
+            });
+        }
+
+        if (sickTriggered) {
+            get().addLogEntry({
+                type: 'SICK_PERSON_KILLED',
+                message: '🤒 Người Bệnh bị Sói cắn - bầy Sói sẽ bỏ lượt cắn ở đêm tiếp theo.',
+                metadata: { round: currentRound, wolfInfectedRound },
+            });
+        }
+
+        if (doppelgangerInheritedEvent) {
+            get().addLogEntry({
+                type: 'DOPPELGANGER_INHERITED',
+                message: '👥 Nhân Bản đã kế thừa vai trò của mục tiêu đã chết.',
+                metadata: doppelgangerInheritedEvent,
+            });
+        }
 
         get().saveGame();
     },
@@ -1015,6 +1246,93 @@ export const useGameStore = create<GameState>((set, get) => ({
             type: 'CULT_RECRUIT',
             message: `Chủ Giáo Phái đã kết nạp ${target.name}`,
             metadata: { targetId, round: session.currentPhase.number },
+        });
+
+        get().saveGame();
+    },
+
+    // Du Côn chọn 2 mục tiêu ở đêm đầu
+    assignDuConTargets: (target1Id: string, target2Id: string) => {
+        const { session } = get();
+        if (!session) return;
+        if (target1Id === target2Id) return;
+
+        const actor = session.players.find(p => p.roleId === 'du_con' && p.isAlive);
+        if (!actor) return;
+
+        set({
+            session: {
+                ...session,
+                duConPlayerId: actor.id,
+                duConTarget1Id: target1Id,
+                duConTarget2Id: target2Id,
+                duConTarget1Dead: false,
+                duConTarget2Dead: false,
+                duConAbilityUsed: true,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'DUCON_TARGETS_ASSIGNED',
+            message: '🏃 Du Côn đã chọn 2 mục tiêu.',
+            metadata: { actorId: actor.id, target1Id, target2Id },
+        });
+
+        get().saveGame();
+    },
+
+    // Nhân Bản chọn mục tiêu sao chép ở đêm đầu
+    assignDoppelgangerTarget: (targetId: string) => {
+        const { session } = get();
+        if (!session) return;
+
+        const actor = session.players.find(p => p.roleId === 'nhan_ban' && p.isAlive);
+        if (!actor || actor.id === targetId) return;
+
+        const updatedPlayers = session.players.map(p =>
+            p.id === actor.id ? { ...p, doppelgangerTargetId: targetId } : p
+        );
+
+        set({
+            session: {
+                ...session,
+                players: updatedPlayers,
+                doppelgangerPlayerId: actor.id,
+                doppelgangerTargetId: targetId,
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'DOPPELGANGER_TARGET_ASSIGNED',
+            message: '👥 Nhân Bản đã chọn mục tiêu sao chép.',
+            metadata: { actorId: actor.id, targetId },
+        });
+
+        get().saveGame();
+    },
+
+    setRedRidingHoodReveal: (wolfId: string, wolfName: string) => {
+        const { session } = get();
+        if (!session) return;
+
+        const revealed = session.redRidingHoodRevealedWolves ?? [];
+        const nextRevealed = revealed.includes(wolfId) ? revealed : [...revealed, wolfId];
+
+        set({
+            session: {
+                ...session,
+                redRidingHoodRevealedWolves: nextRevealed,
+                redRidingHoodLastReveal: { wolfId, wolfName },
+                updatedAt: Date.now(),
+            },
+        });
+
+        get().addLogEntry({
+            type: 'RED_RIDING_HOOD_REVEAL',
+            message: `🧺 Khăn Đỏ đã nhìn thấy một Sói: ${wolfName}`,
+            metadata: { wolfId, wolfName, round: session.currentPhase.number },
         });
 
         get().saveGame();

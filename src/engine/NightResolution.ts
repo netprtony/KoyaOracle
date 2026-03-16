@@ -31,7 +31,7 @@ export interface NightResult {
     /** Maps roleId to result description */
     actionResults: Record<string, string>;
     /** Per-player cause map for deaths resolved this night (includes cascade deaths) */
-    deathCauses?: Record<string, 'werewolf' | 'poison' | 'lover_heartbreak' | 'tough_guy_scheduled'>;
+    deathCauses?: Record<string, 'werewolf' | 'poison' | 'vampire' | 'lover_heartbreak' | 'tough_guy_scheduled'>;
     /**
      * Bị Quyến players who were bitten but survived (will transform next night).
      * The game-master-board should call markBewitchedBitten() for each entry.
@@ -39,6 +39,8 @@ export interface NightResult {
     bewitchedBitten?: { playerId: string; killedBy: 'werewolf' | 'vampire' }[];
     /** Thanh Niên Cứng bitten by werewolves but will die next night (GM-only persistence hook). */
     toughGuyBitten?: { playerId: string; bittenNight: number; scheduledNight: number; cause: 'werewolf' }[];
+    /** True when werewolves are infected and their kill was skipped this night. */
+    wolfInfectedSkip?: boolean;
 }
 
 /**
@@ -71,7 +73,8 @@ export function resolveNightEvents(
     players: Player[],
     roles: Role[],
     previousDeadIds: string[] = [],
-    currentNightNumber?: number
+    currentNightNumber?: number,
+    wolfInfectedRound?: number | null
 ): NightResult {
     // 1. Initialize State Manager (Ephemeral for this resolution or utilizing global singleton?)
     // Ideally we should use the existing global state manager if available, 
@@ -107,6 +110,7 @@ export function resolveNightEvents(
     const kills: string[] = []; // Potential deaths
     const protectedIds: Set<string> = new Set();
     const wolfTargets: string[] = [];
+    const vampireTargets: string[] = [];
 
     const messages: string[] = [];
 
@@ -161,16 +165,34 @@ export function resolveNightEvents(
         a => roles.find(r => r.id === a.roleId)?.team === 'werewolf' && (a.actionType === 'kill' || !a.actionType)
     );
 
+    let wolfInfectedSkip = false;
     if (wolfAction && wolfAction.targetPlayerId) {
-        const targetId = wolfAction.targetPlayerId;
-        const targetState = stateManager.getState(targetId);
+        if (typeof currentNightNumber === 'number' && wolfInfectedRound === currentNightNumber) {
+            wolfInfectedSkip = true;
+            messages.push('🐺 Bầy Sói bị nhiễm bệnh và không thể cắn trong đêm nay.');
+        } else {
+            const targetId = wolfAction.targetPlayerId;
+            const targetState = stateManager.getState(targetId);
 
-        // Wolves can't kill dead people
-        if (targetState && targetState.isAlive) {
-            // Check protection
-            if (!stateManager.getState(targetId)?.isProtected) {
-                wolfTargets.push(targetId);
+            // Wolves can't kill dead people
+            if (targetState && targetState.isAlive) {
+                // Check protection
+                if (!stateManager.getState(targetId)?.isProtected) {
+                    wolfTargets.push(targetId);
+                }
             }
+        }
+    }
+
+    const vampireAction = validActions.find(
+        a => roles.find(r => r.id === a.roleId)?.team === 'vampire' && (a.actionType === 'kill' || !a.actionType)
+    );
+
+    if (vampireAction && vampireAction.targetPlayerId) {
+        const targetId = vampireAction.targetPlayerId;
+        const targetState = stateManager.getState(targetId);
+        if (targetState && targetState.isAlive && !stateManager.getState(targetId)?.isProtected) {
+            vampireTargets.push(targetId);
         }
     }
 
@@ -242,7 +264,7 @@ export function resolveNightEvents(
         }
     });
 
-    let finalDeaths = [...new Set([...immediateWolfKills, ...poisonTargets])];
+    let finalDeaths = [...new Set([...immediateWolfKills, ...poisonTargets, ...vampireTargets])];
 
     // Step 7b – Bị Quyến (Bewitched / bi_quyen) immunity
     // If bi_quyen with state VILLAGER (or unset) is in the death list,
@@ -265,6 +287,7 @@ export function resolveNightEvents(
 
     processBewitched(wolfTargets, 'werewolf');
     processBewitched(kills.filter(id => !wolfTargets.includes(id)), 'werewolf'); // witch poison
+    processBewitched(vampireTargets, 'vampire');
 
     if (bewitchedBitten.length > 0) {
         const names = bewitchedBitten
@@ -302,16 +325,18 @@ export function resolveNightEvents(
 
     // 10. Lovers death-link (linked fate) cascade
     // IMPORTANT: Only expand from deaths that survived protection filters.
-    const deathCauses: Record<string, 'werewolf' | 'poison' | 'lover_heartbreak' | 'tough_guy_scheduled'> = {};
+    const deathCauses: Record<string, 'werewolf' | 'poison' | 'vampire' | 'lover_heartbreak' | 'tough_guy_scheduled'> = {};
     const scheduledSet = new Set(scheduledDueIds);
-    const initialQueue: Array<{ id: string; cause: 'werewolf' | 'poison' | 'tough_guy_scheduled' }> = [];
+    const initialQueue: Array<{ id: string; cause: 'werewolf' | 'poison' | 'vampire' | 'tough_guy_scheduled' }> = [];
 
     for (const id of finalDeaths) {
         const baseCause = scheduledSet.has(id)
             ? 'tough_guy_scheduled'
             : poisonTargets.includes(id)
                 ? 'poison'
-                : 'werewolf';
+                : vampireTargets.includes(id)
+                    ? 'vampire'
+                    : 'werewolf';
 
         deathCauses[id] = baseCause;
         initialQueue.push({ id, cause: baseCause });
@@ -386,6 +411,8 @@ export function resolveNightEvents(
                 );
             } else if (cause === 'poison') {
                 messages.push(`☠️ ${p.name} đã chết — bị đầu độc.`);
+            } else if (cause === 'vampire') {
+                messages.push(`🩸 ${p.name} đã chết — bị Ma Cà Rồng hút máu.`);
             } else {
                 messages.push(`💀 ${p.name} đã chết — bị Sói cắn.`);
             }
@@ -401,5 +428,6 @@ export function resolveNightEvents(
         deathCauses,
         bewitchedBitten: bewitchedBitten.length > 0 ? bewitchedBitten : undefined,
         toughGuyBitten: toughGuyBitten.length > 0 ? toughGuyBitten : undefined,
+        wolfInfectedSkip,
     };
 }

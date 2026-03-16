@@ -38,6 +38,10 @@ export function useGameMasterState() {
     clearTransformedThisNight,
     assignLovers,
     recruitToCult,
+    assignDuConTargets,
+    assignDoppelgangerTarget,
+    setRedRidingHoodReveal,
+    addLogEntry,
   } = useGameStore();
 
   const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
@@ -108,6 +112,12 @@ export function useGameMasterState() {
 
   // Cult Leader (Chủ Giáo Phái) Modal State
   const [showCultRecruitModal, setShowCultRecruitModal] = useState(false);
+
+  // Du Côn / Nhân Bản / Khăn Đỏ modal states
+  const [showDuConModal, setShowDuConModal] = useState(false);
+  const [showDoppelgangerModal, setShowDoppelgangerModal] = useState(false);
+  const [showRedRidingHoodRevealModal, setShowRedRidingHoodRevealModal] = useState(false);
+  const [redRidingHoodRevealData, setRedRidingHoodRevealData] = useState<{ wolfId: string; wolfName: string } | null>(null);
   
   // Swipe Effect Settings
   const [swipeEffect, setSwipeEffect] = useState<SwipeEffect>('default');
@@ -167,7 +177,8 @@ export function useGameMasterState() {
        scenario, 
        availableRoles, 
        session.currentPhase.number, 
-       session.nightOrder
+      session.nightOrder,
+      session
   ) : [];
   
   const currentRole = isNightPhase ? nightSequence[currentRoleIndex] : null;
@@ -199,6 +210,37 @@ export function useGameMasterState() {
       }
     }
   }, [currentRoleIndex, currentRole?.id]);
+
+  useEffect(() => {
+    if (
+      currentRole?.id === 'du_con' &&
+      session?.currentPhase.number === 1 &&
+      !session?.duConAbilityUsed &&
+      !showDuConModal
+    ) {
+      setShowDuConModal(true);
+    }
+  }, [currentRole?.id, session?.currentPhase.number, session?.duConAbilityUsed, showDuConModal]);
+
+  useEffect(() => {
+    if (
+      currentRole?.id === 'nhan_ban' &&
+      session?.currentPhase.number === 1 &&
+      !session?.doppelgangerTargetId &&
+      !showDoppelgangerModal
+    ) {
+      setShowDoppelgangerModal(true);
+    }
+  }, [currentRole?.id, session?.currentPhase.number, session?.doppelgangerTargetId, showDoppelgangerModal]);
+
+  useEffect(() => {
+    if (
+      currentRole?.id === 'khan_do' &&
+      !showRedRidingHoodRevealModal
+    ) {
+      triggerRedRidingHoodReveal();
+    }
+  }, [currentRole?.id, showRedRidingHoodRevealModal]);
 
   // Physical Card Mode Detection
   const isPhysicalCardMode = session?.mode === 'PHYSICAL_CARD';
@@ -278,6 +320,7 @@ export function useGameMasterState() {
 
     // Helper: effective team accounting for Traitor and Bị Quyến
     const effectiveTeam = (player: typeof allPlayers[0]) => {
+      if ((player as any).teamOverride) return (player as any).teamOverride;
       if ((player as any).isTraitor) return 'werewolf';
       if (player.roleId === 'bi_quyen') {
         const bs = (player as any).bewitchedState as string | undefined;
@@ -330,6 +373,33 @@ export function useGameMasterState() {
       }
     }
 
+    // ── Du Côn win: 2 target chết và Du Côn còn sống ─────────────────
+    const duCon = freshAlivePlayers.find(p => p.roleId === 'du_con');
+    if (
+      duCon &&
+      currentSession?.duConTarget1Id &&
+      currentSession?.duConTarget2Id &&
+      currentSession?.duConTarget1Dead &&
+      currentSession?.duConTarget2Dead
+    ) {
+      addLogEntry({
+        type: 'DUCON_WIN',
+        message: `Du Con (${duCon.name}) da dat dieu kien chien thang.`,
+        metadata: { winnerIds: [duCon.id] },
+      });
+      const duConWin: WinResult = {
+        hasWinner: true,
+        winnerType: 'individual',
+        winner: 'du_con',
+        winnerPlayerIds: [duCon.id],
+        winCondition: 'targetsDeadAndSelfAlive',
+        message: `🏃 Du Côn (${duCon.name}) đã sống sót và cả 2 mục tiêu đều đã chết!`,
+      };
+      setGameWinner(duConWin);
+      setShowVictoryModal(true);
+      return;
+    }
+
     // ── Lovers win: exactly 2 alive, both are lovers from different teams ──
     const loversAlive = freshAlivePlayers.filter(p => (p as any).isLover);
     if (loversAlive.length === 2 && freshAlivePlayers.length === 2) {
@@ -355,6 +425,19 @@ export function useGameMasterState() {
     const aliveVillagers  = freshAlivePlayers.filter(p => effectiveTeam(p) === 'villager');
     const aliveVampires   = freshAlivePlayers.filter(p => effectiveTeam(p) === 'vampire');
 
+    if (aliveVampires.length > 0 && aliveWerewolves.length === 0 && aliveVillagers.length === 0) {
+      const vampireWin: WinResult = {
+        hasWinner: true,
+        winnerType: 'team',
+        winner: 'vampire',
+        winnerPlayerIds: aliveVampires.map(p => p.id),
+        winCondition: 'vampireTeamWins',
+      };
+      setGameWinner(vampireWin);
+      setShowVictoryModal(true);
+      return;
+    }
+
     // Werewolf win: wolves >= non-wolves
     const nonWerewolves = freshAlivePlayers.filter(p => effectiveTeam(p) !== 'werewolf');
 
@@ -371,7 +454,7 @@ export function useGameMasterState() {
       return;
     }
     
-    // Villager win: all werewolves dead
+    // Villager win: all werewolves and vampires dead
     if (aliveWerewolves.length === 0 && aliveVampires.length === 0 && aliveVillagers.length > 0) {
       const villagerWin: WinResult = {
         hasWinner: true,
@@ -389,6 +472,21 @@ export function useGameMasterState() {
   // Skill Modal Handlers
   const handleOpenSkillModal = (actionType?: string) => {
     // Check for special role-specific modals
+    if (currentRole?.id === 'du_con') {
+      setShowDuConModal(true);
+      return;
+    }
+
+    if (currentRole?.id === 'nhan_ban') {
+      setShowDoppelgangerModal(true);
+      return;
+    }
+
+    if (currentRole?.id === 'khan_do') {
+      triggerRedRidingHoodReveal();
+      return;
+    }
+
     if (currentRole?.id === 'than_tinh_yeu') {
       // Cupid only acts on Night 1, once per game
       if (session?.currentPhase.number === 1 && !session?.loversAssigned) {
@@ -570,6 +668,63 @@ export function useGameMasterState() {
     setShowCultRecruitModal(false);
   };
 
+  const handleConfirmDuConTargets = (target1Id: string, target2Id: string) => {
+    assignDuConTargets(target1Id, target2Id);
+    recordNightAction('du_con', target1Id, 'markTargets');
+    recordNightAction('du_con', target2Id, 'markTargets_target2');
+    setShowDuConModal(false);
+  };
+
+  const handleSkipDuConTargets = () => {
+    recordNightAction('du_con', null, undefined);
+    setShowDuConModal(false);
+  };
+
+  const handleConfirmDoppelgangerTarget = (targetId: string) => {
+    assignDoppelgangerTarget(targetId);
+    recordNightAction('nhan_ban', targetId, 'copyRole');
+    setShowDoppelgangerModal(false);
+  };
+
+  const handleSkipDoppelgangerTarget = () => {
+    recordNightAction('nhan_ban', null, undefined);
+    setShowDoppelgangerModal(false);
+  };
+
+  const triggerRedRidingHoodReveal = () => {
+    if (!session) return;
+
+    const aliveWolves = session.players.filter(p => {
+      if (!p.isAlive) return false;
+      if ((p as any).isTraitor) return false;
+      const role = availableRoles.find(r => r.id === p.roleId);
+      const team = (p as any).teamOverride || role?.team;
+      return team === 'werewolf';
+    });
+
+    if (aliveWolves.length === 0) {
+      setRedRidingHoodRevealData(null);
+      setShowRedRidingHoodRevealModal(true);
+      return;
+    }
+
+    const revealedSet = new Set(session.redRidingHoodRevealedWolves ?? []);
+    const unrevealed = aliveWolves.filter(w => !revealedSet.has(w.id));
+    const candidates = unrevealed.length > 0 ? unrevealed : aliveWolves;
+    const picked = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!picked) return;
+
+    setRedRidingHoodRevealData({ wolfId: picked.id, wolfName: picked.name });
+    setShowRedRidingHoodRevealModal(true);
+    setRedRidingHoodReveal(picked.id, picked.name);
+    recordNightAction('khan_do', picked.id, 'detectRole');
+  };
+
+  const handleCloseRedRidingHoodReveal = () => {
+    setShowRedRidingHoodRevealModal(false);
+    setRedRidingHoodRevealData(null);
+  };
+
   /**
    * Check if Cult Leader has won (all alive non-leader players are members).
    * Fires after recruit AND after any death.
@@ -667,7 +822,8 @@ export function useGameMasterState() {
          session.players,
          availableRoles,
          session.players.filter(p => !p.isAlive).map(p => p.id),
-         session.currentPhase?.number
+       session.currentPhase?.number,
+       session.wolfInfectedRound
      );
 
      setMorningMessages(results.messages);
@@ -693,6 +849,14 @@ export function useGameMasterState() {
      }
 
      setMorningReportVisible(true);
+
+     if (results.wolfInfectedSkip) {
+       addLogEntry({
+         type: 'WOLF_INFECTED_SKIP',
+         message: '🐺 Bầy Sói bị nhiễm bệnh và bỏ lượt cắn đêm nay.',
+         metadata: { round: session.currentPhase.number },
+       });
+     }
   };
 
   const handleConfirmMorningReport = () => {
@@ -1170,6 +1334,15 @@ export function useGameMasterState() {
     // Cult Leader
     showCultRecruitModal, setShowCultRecruitModal,
     handleConfirmCultRecruit, handleSkipCultRecruit,
+
+    // Du Côn / Nhân Bản / Khăn Đỏ
+    showDuConModal, setShowDuConModal,
+    handleConfirmDuConTargets, handleSkipDuConTargets,
+    showDoppelgangerModal, setShowDoppelgangerModal,
+    handleConfirmDoppelgangerTarget, handleSkipDoppelgangerTarget,
+    showRedRidingHoodRevealModal,
+    redRidingHoodRevealData,
+    handleCloseRedRidingHoodReveal,
 
     // Victory
     showVictoryModal, setShowVictoryModal, gameWinner, setGameWinner,

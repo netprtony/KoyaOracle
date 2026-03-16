@@ -1,4 +1,4 @@
-import { Role, Scenario, ScenarioRole, NightOrderDefinition } from '../types';
+import { Role, Scenario, NightOrderDefinition, GameSession } from '../types';
 
 /**
  * Get the night sequence of roles to call based on scenario
@@ -9,7 +9,8 @@ export function getNightSequence(
     scenario: Scenario,
     availableRoles: Role[],
     nightNumber: number = 1,
-    sessionOverrideOrder?: NightOrderDefinition
+    sessionOverrideOrder?: NightOrderDefinition,
+    session?: GameSession
 ): Role[] {
     // Determine which order list to use
     // Priority: Session Override -> Scenario Default
@@ -37,6 +38,16 @@ export function getNightSequence(
     );
 
     sequenceIds.forEach((roleId) => {
+        if (roleId === 'khan_do') {
+            const unlocked = session?.redRidingHoodPowerUnlocked === true;
+            const unlockRound = session?.redRidingHoodUnlockRound ?? null;
+            const isAlive = !!session?.players.some(p => p.roleId === 'khan_do' && p.isAlive);
+            const canActThisNight = unlocked && unlockRound !== null && nightNumber > unlockRound && isAlive;
+            if (!canActThisNight) {
+                return;
+            }
+        }
+
         if (activeRoleIds.has(roleId)) {
             const role = availableRoles.find((r) => r.id === roleId);
             if (role) {

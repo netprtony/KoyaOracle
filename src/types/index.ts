@@ -102,6 +102,12 @@ export interface Player {
     // ── Cult (Giáo Phái) ────────────────────────────────────────────────────
     /** True once recruited by Cult Leader */
     isCultMember?: boolean;
+    // Runtime team override for roles that can change allegiance mid-game (e.g. Nhân Bản)
+    teamOverride?: 'villager' | 'werewolf' | 'vampire' | 'neutral' | null;
+    // Nhân Bản (Doppelganger)
+    doppelgangerTargetId?: string | null;
+    doppelgangerInheritedRole?: string | null;
+    doppelgangerActivated?: boolean;
 }
 
 // ============================================
@@ -179,7 +185,15 @@ export type LogEntryType =
     | 'LOVER_BROKEN_HEART'
     | 'TOUGH_GUY_BITTEN'
     | 'TOUGH_GUY_DIED'
-    | 'CULT_RECRUIT';
+    | 'CULT_RECRUIT'
+    | 'DUCON_TARGETS_ASSIGNED'
+    | 'DUCON_WIN'
+    | 'RED_RIDING_HOOD_UNLOCKED'
+    | 'RED_RIDING_HOOD_REVEAL'
+    | 'WOLF_INFECTED_SKIP'
+    | 'SICK_PERSON_KILLED'
+    | 'DOPPELGANGER_TARGET_ASSIGNED'
+    | 'DOPPELGANGER_INHERITED';
 
 export interface ScheduledDeath {
     playerId: string;
@@ -237,6 +251,25 @@ export interface GameSession {
     // Cult (Giáo Phái) state
     cultLeaderPlayerId?: string | null;
     cultMemberIds?: string[];
+    // Du Côn (Hoodlum)
+    duConPlayerId?: string | null;
+    duConTarget1Id?: string | null;
+    duConTarget2Id?: string | null;
+    duConTarget1Dead?: boolean;
+    duConTarget2Dead?: boolean;
+    duConAbilityUsed?: boolean;
+    // Bà Ngoại & Khăn Đỏ
+    grandmaPlayerId?: string | null;
+    redRidingHoodPlayerId?: string | null;
+    redRidingHoodPowerUnlocked?: boolean;
+    redRidingHoodUnlockRound?: number | null;
+    redRidingHoodRevealedWolves?: string[];
+    redRidingHoodLastReveal?: { wolfId: string; wolfName: string } | null;
+    // Người Bệnh
+    wolfInfectedRound?: number | null;
+    // Nhân Bản
+    doppelgangerPlayerId?: string | null;
+    doppelgangerTargetId?: string | null;
 }
 
 // ============================================
@@ -294,6 +327,12 @@ export interface GameState {
     assignLovers: (player1Id: string, player2Id: string) => void;
     // Cult (Giáo Phái)
     recruitToCult: (targetId: string) => void;
+    // Du Côn (Hoodlum)
+    assignDuConTargets: (target1Id: string, target2Id: string) => void;
+    // Nhân Bản (Doppelganger)
+    assignDoppelgangerTarget: (targetId: string) => void;
+    // Khăn Đỏ reveal bookkeeping
+    setRedRidingHoodReveal: (wolfId: string, wolfName: string) => void;
     // Utility
     resetBlessedPlayers: () => void;
     // History

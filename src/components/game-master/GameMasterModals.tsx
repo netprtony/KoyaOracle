@@ -18,6 +18,9 @@ import { LoversRevealModal } from '../LoversRevealModal';
 import { TraitorSelectModal } from '../TraitorSelectModal';
 import { BewitchedTransformAlert } from '../BewitchedTransformAlert';
 import { CultRecruitModal } from '../CultRecruitModal';
+import { DuConSelectModal } from '../DuConSelectModal';
+import { DoppelgangerSelectModal } from '../DoppelgangerSelectModal';
+import { RedRidingHoodRevealModal } from '../RedRidingHoodRevealModal';
 import { resolveNightEvents } from '../../engine/NightResolution';
 import { GameMasterState } from './hooks/useGameMasterState';
 
@@ -48,6 +51,12 @@ export function GameMasterModals(props: GameMasterState) {
     showBewitchedAlert, handleDismissBewitchedAlert,
     showCultRecruitModal, setShowCultRecruitModal,
     handleConfirmCultRecruit, handleSkipCultRecruit,
+    showDuConModal, setShowDuConModal,
+    handleConfirmDuConTargets, handleSkipDuConTargets,
+    showDoppelgangerModal, setShowDoppelgangerModal,
+    handleConfirmDoppelgangerTarget, handleSkipDoppelgangerTarget,
+    showRedRidingHoodRevealModal,
+    redRidingHoodRevealData, handleCloseRedRidingHoodReveal,
     showVictoryModal, setShowVictoryModal, gameWinner, setGameWinner,
     swipeEffect, setSwipeEffect,
     showSwipeEffectPicker, setShowSwipeEffectPicker,
@@ -315,7 +324,9 @@ export function GameMasterModals(props: GameMasterState) {
                     actionsExcludingWitch,
                     session.players,
                     availableRoles,
-                    session.players.filter(p => !p.isAlive).map(p => p.id)
+                  session.players.filter(p => !p.isAlive).map(p => p.id),
+                  session.currentPhase.number,
+                  session.wolfInfectedRound
                 );
                 const victimName = simulation.deadPlayerIds.length > 0 
                   ? session.players.filter(p => simulation.deadPlayerIds.includes(p.id)).map(p => p.name).join(', ')
@@ -712,6 +723,30 @@ export function GameMasterModals(props: GameMasterState) {
          cultLeaderId={session.players.find(p => p.roleId === 'chu_giao_phai')?.id || ''}
          cultMemberIds={session.cultMemberIds ?? []}
          availableRoles={availableRoles}
+       />
+
+       <DuConSelectModal
+         visible={showDuConModal}
+         onClose={() => setShowDuConModal(false)}
+         onSkip={handleSkipDuConTargets}
+         onConfirm={handleConfirmDuConTargets}
+         players={session.players}
+         selfId={session.duConPlayerId}
+       />
+
+       <DoppelgangerSelectModal
+         visible={showDoppelgangerModal}
+         onClose={() => setShowDoppelgangerModal(false)}
+         onSkip={handleSkipDoppelgangerTarget}
+         onConfirm={handleConfirmDoppelgangerTarget}
+         players={session.players}
+         selfId={session.doppelgangerPlayerId}
+       />
+
+       <RedRidingHoodRevealModal
+         visible={showRedRidingHoodRevealModal}
+         onClose={handleCloseRedRidingHoodReveal}
+         wolfName={redRidingHoodRevealData?.wolfName}
        />
 
        {/* LOVERS REVEAL MODAL */}

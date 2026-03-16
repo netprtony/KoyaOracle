@@ -257,7 +257,9 @@ export function NightPhase({
                         actionsExcludingWitch,
                         session.players,
                         availableRoles,
-                        session.players.filter(p => !p.isAlive).map(p => p.id)
+                      session.players.filter(p => !p.isAlive).map(p => p.id),
+                      session.currentPhase.number,
+                      session.wolfInfectedRound
                     );
                     const victimName = simulation.deadPlayerIds.length > 0 
                       ? session.players.filter(p => simulation.deadPlayerIds.includes(p.id)).map(p => p.name).join(', ')
