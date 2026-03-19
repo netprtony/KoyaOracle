@@ -75,6 +75,26 @@ export default function PlayerSelectionScreen() {
     }
   };
 
+  const handleSelectAll = () => {
+    if (!scenario) return;
+    
+    const max = scenario.playerCount;
+    
+    // Select all filtered players until limit is reached
+    const newSelected = new Set(selectedIds);
+    
+    for (const player of filteredPlayers) {
+      if (newSelected.size >= max) break;
+      newSelected.add(player.id);
+    }
+    
+    setSelectedIds(newSelected);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
   const handleContinue = () => {
     if (!scenario) return;
 
@@ -130,6 +150,14 @@ export default function PlayerSelectionScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
+          <TouchableOpacity 
+            style={styles.selectAllBtn} 
+            onPress={selectedIds.size > 0 ? handleDeselectAll : handleSelectAll}
+          >
+            <Text style={styles.selectAllText}>
+              {selectedIds.size > 0 ? 'Hủy' : 'Tất cả'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.quickAddBtn} onPress={() => setShowAddModal(true)}>
             <Text style={styles.quickAddText}>+</Text>
           </TouchableOpacity>
@@ -271,6 +299,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#4B5563',
+  },
+  selectAllBtn: {
+    paddingHorizontal: 12,
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4B5563',
+  },
+  selectAllText: {
+    fontSize: 14,
+    color: '#F9FAFB',
+    fontWeight: '600',
   },
   quickAddText: {
     fontSize: 24,

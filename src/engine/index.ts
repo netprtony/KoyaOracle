@@ -11,6 +11,6 @@ export { PassiveSkillHandler, PassiveEffect, DeathProcessingResult } from './Pas
 export { GameEngine, GameConfig, GameState, NightPhaseResult, DayPhaseResult, createGameEngine, resetGameEngine } from './GameEngine';
 
 // Existing exports
-export { getNightSequence, getNextRole, getPreviousRole } from './nightSequence';
+export { getNightSequence, getNextRole, getPreviousRole, buildWolfPhaseParticipants, initNightQueue } from './nightSequence';
 export { createInitialPhase, advanceToDay, advanceToNight, getPhaseDisplay } from './phaseController';
 export { assignRandomRoles } from './roleAssignment';

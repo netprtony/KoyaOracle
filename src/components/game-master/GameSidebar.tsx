@@ -11,7 +11,6 @@ interface GameSidebarProps {
   onRestart: () => void;
   onEndGame: () => void;
   onOpenOrderSettings: () => void;
-  onOpenSwipeEffect: () => void;
   onOpenTimerSettings: () => void;
   matchLog: MatchLogEntry[];
 }
@@ -23,7 +22,6 @@ export function GameSidebar({
   onRestart,
   onEndGame,
   onOpenOrderSettings,
-  onOpenSwipeEffect,
   onOpenTimerSettings,
   matchLog
 }: GameSidebarProps) {
@@ -53,10 +51,6 @@ export function GameSidebar({
               <TouchableOpacity style={styles.menuItem} onPress={onOpenOrderSettings}>
                  <Text style={styles.menuItemIcon}>⚙️</Text>
                  <Text style={styles.menuItemText}>Cài đặt thứ tự gọi</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.menuItem} onPress={onOpenSwipeEffect}>
-                 <Text style={styles.menuItemIcon}>✨</Text>
-                 <Text style={styles.menuItemText}>Hiệu ứng vuốt</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={onOpenTimerSettings}>
                  <Text style={styles.menuItemIcon}>⏱️</Text>

@@ -1,13 +1,17 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, Pressable, StyleSheet } from 'react-native';
+import { WolfPhaseNavigator } from '../wolfPhase/WolfPhaseNavigator';
+import { WOLF_PACK_ROLES } from '../../engine/nightSequence';
 import { gameMasterStyles as styles } from './gameMasterStyles';
-import { SwipeableCardStack, SwipeEffect } from '../SwipeableCardStack';
 import { CountdownTimer } from '../CountdownTimer';
 import { GameSession, Role } from '../../types';
 import { getSkillDisplay } from './constants';
 import { NightAction } from '../../../assets/role-types';
 import { resolveNightEvents } from '../../engine/NightResolution';
 import { getRoleManager } from '../../engine/RoleManager';
+import { NightQueueDrawer } from '../night/NightQueueDrawer';
+import { NightRoleQueueItem } from '../../types/nightPhase.types';
+import { ThemedRoleCard } from '../night/roles/ThemedRoleCard';
 
 interface NightPhaseProps {
   session: GameSession;
@@ -15,11 +19,9 @@ interface NightPhaseProps {
   nightSequence: Role[];
   currentRoleIndex: number;
   roleTimerDuration: number;
-  swipeEffect: SwipeEffect;
   isPhysicalCardMode: boolean;
   isNight1: boolean;
   shouldShowRoleAssignment: boolean;
-  shouldShowViewRole: boolean;
   
   // Helpers
   getRoleQuantity: (roleId: string) => number;
@@ -27,8 +29,8 @@ interface NightPhaseProps {
   // Handlers
   onPreviousRole: () => void;
   onNextRole: () => void;
+  onJumpToRole: (index: number) => void;
   onOpenRoleAssign: () => void;
-  onViewRole: () => void;
   onShowPlayerList: () => void;
   onShowDualAction: () => void;
   onOpenSkillModal: () => void;
@@ -41,16 +43,14 @@ export function NightPhase({
   nightSequence,
   currentRoleIndex,
   roleTimerDuration,
-  swipeEffect,
   isPhysicalCardMode,
   isNight1,
   shouldShowRoleAssignment,
-  shouldShowViewRole,
   getRoleQuantity,
   onPreviousRole,
   onNextRole,
+  onJumpToRole,
   onOpenRoleAssign,
-  onViewRole,
   onShowPlayerList,
   onShowDualAction,
   onOpenSkillModal,
@@ -58,7 +58,42 @@ export function NightPhase({
 }: NightPhaseProps) {
   
   const currentRole = nightSequence[currentRoleIndex];
+  const isWolfRole = currentRole && WOLF_PACK_ROLES.has(currentRole.id);
+
+  const handleWolfPhaseComplete = () => {
+    // Find index of first role after the wolf pack
+    let nextIndex = currentRoleIndex + 1;
+    while (nextIndex < nightSequence.length && WOLF_PACK_ROLES.has(nightSequence[nextIndex].id)) {
+      nextIndex++;
+    }
+    
+    if (nextIndex < nightSequence.length) {
+      onJumpToRole(nextIndex);
+    } else {
+      onNextRole(); // Should handle phase end
+    }
+  };
+
+  const handlePreviousRoleUnified = () => {
+    if (isWolfRole) {
+        onPreviousRole();
+        return;
+    }
+
+    let prevIndex = currentRoleIndex - 1;
+    if (prevIndex >= 0 && WOLF_PACK_ROLES.has(nightSequence[prevIndex].id)) {
+        // Find the FIRST wolf in the consecutive pack
+        while (prevIndex > 0 && WOLF_PACK_ROLES.has(nightSequence[prevIndex - 1].id)) {
+            prevIndex--;
+        }
+        onJumpToRole(prevIndex);
+    } else {
+        onPreviousRole();
+    }
+  };
+
   const roleManager = getRoleManager();
+  const [queueVisible, setQueueVisible] = React.useState(false);
 
   const getAssignedPlayersForRole = (roleId: string) => {
     return session.players.filter(p => p.roleId === roleId);
@@ -180,12 +215,12 @@ export function NightPhase({
             Role {currentRoleIndex + 1} / {nightSequence.length}
           </Text>
           
-          {shouldShowViewRole && role && isActive && (
-            <TouchableOpacity 
-              style={styles.viewRoleBtn}
-              onPress={onViewRole}
+          {isActive && (
+            <TouchableOpacity
+              style={styles.queueBtn}
+              onPress={() => setQueueVisible(true)}
             >
-              <Text style={styles.viewRoleBtnText}>👁️</Text>
+              <Text style={styles.queueBtnText}>Q</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -296,7 +331,6 @@ export function NightPhase({
             <Text style={styles.instructionText}>
               Gọi {role.name} dậy và thực hiện hành động.
             </Text>
-            <Text style={styles.swipeHint}>Vuốt để tiếp tục ››</Text>
           </View>
         ) : null)}
       </View>
@@ -312,23 +346,61 @@ export function NightPhase({
     return 'Chưa gán';
   };
 
-  const cards = nightSequence.map((role, index) => ({
-    id: role.id,
-    icon: role.icon,
-    name: role.name,
-    playerName: getPlayerNameForRole(role.id),
-    content: renderRoleCardContent(role, index === currentRoleIndex),
-    onLongPress: index === currentRoleIndex ? onShowPlayerList : undefined,
-  }));
+  const cards = nightSequence.map((role, index) => {
+    const isWolfPack = WOLF_PACK_ROLES.has(role.id);
+    const isActive = index === currentRoleIndex;
+
+    return {
+      id: role.id,
+      icon: role.icon,
+      name: role.name,
+      playerName: getPlayerNameForRole(role.id),
+      content: isWolfPack ? renderRoleCardContent(role, isActive) : (
+        <ThemedRoleCard 
+          role={role}
+          session={session}
+          isActive={isActive}
+          onShowRoleDesc={onShowRoleDesc}
+          currentRoleIndex={index}
+          totalRoles={nightSequence.length}
+        />
+      ),
+      onLongPress: isActive ? onShowPlayerList : undefined,
+    };
+  });
+
+  const drawerQueue: NightRoleQueueItem[] = nightSequence.map((role, index) => {
+    const assignedPlayers = getAssignedPlayersForRole(role.id);
+    const actor = assignedPlayers.find(p => p.isAlive) || assignedPlayers[0];
+    return {
+      roleId: role.id as NightRoleQueueItem['roleId'],
+      playerId: actor?.id || role.id,
+      playerName: actor?.name || role.name,
+      priority: index + 1,
+      wakeCondition: 'always',
+      isActive: assignedPlayers.length === 0 ? true : assignedPlayers.some(p => p.isAlive),
+      actionState: null,
+    };
+  });
+
+  const drawerActionMap = session.nightActions.reduce<Record<string, { type: string; targetName?: string }>>((acc, action) => {
+    const targetName = action.targetPlayerId
+      ? session.players.find(player => player.id === action.targetPlayerId)?.name
+      : undefined;
+    acc[`${action.roleId}:${action.roleId}`] = {
+      type: action.actionType || 'ACTION',
+      targetName,
+    };
+    return acc;
+  }, {});
 
   return (
-    <Pressable 
-      style={styles.nightContainer} 
-      onLongPress={onShowPlayerList}
-      delayLongPress={400}
-    >
-      {/* Countdown Timer Bar */}
-      {roleTimerDuration > 0 && (
+    <>
+      <Pressable
+        style={styles.nightContainer}
+        onLongPress={onShowPlayerList}
+        delayLongPress={400}
+      >{roleTimerDuration > 0 && (
         <View style={styles.timerBar}>
           <CountdownTimer
             key={currentRoleIndex}
@@ -337,127 +409,134 @@ export function NightPhase({
             showControls={true}
           />
         </View>
-      )}
-      
-      <SwipeableCardStack
-        cards={cards}
-        currentIndex={currentRoleIndex}
-        onSwipeLeft={onPreviousRole}
-        onSwipeRight={onNextRole}
-        canSwipeLeft={currentRoleIndex > 0}
-        canSwipeRight={currentRoleIndex < nightSequence.length - 1 || !shouldShowRoleAssignment || (!!currentRole && isRoleFullyAssigned(currentRole.id))}
-        swipeEffect={swipeEffect}
-      />
-      
-      {/* Action Buttons */}
-      <View style={styles.nightActionsFixed}>
-        <TouchableOpacity 
-          style={[styles.actionButtonSmall, currentRoleIndex === 0 && styles.disabledBtn]} 
-          onPress={onPreviousRole}
-          disabled={currentRoleIndex === 0}
-        >
-          <Text style={[styles.actionBtnTextSec, currentRoleIndex === 0 && { opacity: 0.3 }]}>
-            ‹
-          </Text>
-        </TouchableOpacity>
-        
-        {/* CENTRAL ACTION BUTTON LOGIC */}
-        {(() => {
-          if (!currentRole) return null;
-          
-          const nightAction = getCurrentNightAction();
-          const skillInfo = nightAction ? getSkillDisplay(nightAction.type) : null;
-          const hasSkill = nightAction && nightAction.type !== 'none';
-          const isAssigned = isRoleFullyAssigned(currentRole.id);
-          const assignedPlayers = getAssignedPlayersForRole(currentRole.id);
-          const areAllAssignedDead = assignedPlayers.length > 0 && assignedPlayers.every(p => !p.isAlive);
-          const currentActions = getActionStatusForRole(currentRole.id);
-          const hasActionTaken = currentActions.length > 0;
-          
-          if (areAllAssignedDead) {
-            return (
-              <View style={[styles.centralActionButton, styles.centralActionButtonDisabled]}>
-                <Text style={styles.centralActionButtonText}>🚫 Đã chết</Text>
-              </View>
-            );
-          }
-          
-          if (shouldShowRoleAssignment && !isAssigned) {
-            return (
-              <TouchableOpacity 
-                style={[styles.centralActionButton, styles.centralActionButtonAssign]}
-                onPress={onOpenRoleAssign}
-              >
-                <Text style={styles.centralActionButtonText}>
-                  + Gán ({getAssignedPlayersForRole(currentRole.id).length}/{getRoleQuantity(currentRole.id)})
-                </Text>
-              </TouchableOpacity>
-            );
-          }
-          
-          if (hasSkill && skillInfo) {
-            if (nightAction?.type === 'dual') {
+      )}<View style={styles.cardContainer}>
+        {cards[currentRoleIndex]?.content}
+      </View>{isWolfRole && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0B0B10', zIndex: 10, padding: 10, borderRadius: 20 }]}>
+           <WolfPhaseNavigator onComplete={handleWolfPhaseComplete} />
+        </View>
+      )}{!isWolfRole && (
+        <View style={styles.nightActionsFixed}>
+          <TouchableOpacity 
+            style={[styles.actionButtonSmall, currentRoleIndex === 0 && styles.disabledBtn]} 
+            onPress={handlePreviousRoleUnified}
+            disabled={currentRoleIndex === 0}
+          >
+            <Text style={[styles.actionBtnTextSec, currentRoleIndex === 0 && { opacity: 0.3 }]}>
+              ‹
+            </Text>
+          </TouchableOpacity>
+
+          {/* CENTRAL ACTION BUTTON LOGIC */}
+          {(() => {
+            if (!currentRole) return null;
+
+            const nightAction = getCurrentNightAction();
+            const skillInfo = nightAction ? getSkillDisplay(nightAction.type) : null;
+            const hasSkill = nightAction && nightAction.type !== 'none';
+            const isAssigned = isRoleFullyAssigned(currentRole.id);
+            const assignedPlayers = getAssignedPlayersForRole(currentRole.id);
+            const areAllAssignedDead = assignedPlayers.length > 0 && assignedPlayers.every(p => !p.isAlive);
+            const currentActions = getActionStatusForRole(currentRole.id);
+            const hasActionTaken = currentActions.length > 0;
+
+            if (areAllAssignedDead) {
+              return (
+                <View style={[styles.centralActionButton, styles.centralActionButtonDisabled]}>
+                  <Text style={styles.centralActionButtonText}>🚫 Đã chết</Text>
+                </View>
+              );
+            }
+
+            if (shouldShowRoleAssignment && !isAssigned) {
+              return (
+                <TouchableOpacity 
+                  style={[styles.centralActionButton, styles.centralActionButtonAssign]}
+                  onPress={onOpenRoleAssign}
+                >
+                  <Text style={styles.centralActionButtonText}>
+                    + Gán ({getAssignedPlayersForRole(currentRole.id).length}/{getRoleQuantity(currentRole.id)})
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+
+            if (hasSkill && skillInfo) {
+              if (nightAction?.type === 'dual') {
+                return (
+                  <TouchableOpacity 
+                    style={[
+                      styles.centralActionButton, 
+                      hasActionTaken ? styles.centralActionButtonDone : styles.centralActionButtonAction
+                    ]}
+                    onPress={onShowDualAction}
+                  >
+                    <Text style={styles.centralActionButtonText}>
+                      {hasActionTaken ? '✏️ Sửa hành động' : `${skillInfo.icon} Hành động`}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }
+
               return (
                 <TouchableOpacity 
                   style={[
                     styles.centralActionButton, 
                     hasActionTaken ? styles.centralActionButtonDone : styles.centralActionButtonAction
                   ]}
-                  onPress={onShowDualAction}
+                  onPress={onOpenSkillModal}
                 >
                   <Text style={styles.centralActionButtonText}>
-                    {hasActionTaken ? '✏️ Sửa hành động' : `${skillInfo.icon} Hành động`}
+                    {hasActionTaken 
+                      ? `✏️ Sửa ${skillInfo.verb}` 
+                      : `${skillInfo.icon} ${skillInfo.name}`}
                   </Text>
                 </TouchableOpacity>
               );
             }
-            
+
+            if (shouldShowRoleAssignment && isAssigned) {
+              return (
+                <TouchableOpacity 
+                  style={[styles.centralActionButton, styles.centralActionButtonDone]}
+                  onPress={onOpenRoleAssign}
+                >
+                  <Text style={styles.centralActionButtonText}>
+                    ✓ Đã gán {getAssignedPlayersForRole(currentRole.id).length}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+
             return (
-              <TouchableOpacity 
-                style={[
-                  styles.centralActionButton, 
-                  hasActionTaken ? styles.centralActionButtonDone : styles.centralActionButtonAction
-                ]}
-                onPress={onOpenSkillModal}
-              >
-                <Text style={styles.centralActionButtonText}>
-                  {hasActionTaken 
-                    ? `✏️ Sửa ${skillInfo.verb}` 
-                    : `${skillInfo.icon} ${skillInfo.name}`}
-                </Text>
-              </TouchableOpacity>
+              <View style={[styles.centralActionButton, styles.centralActionButtonDisabled]}>
+                <Text style={styles.centralActionButtonText}>Không có hành động</Text>
+              </View>
             );
-          }
-          
-          if (shouldShowRoleAssignment && isAssigned) {
-            return (
-              <TouchableOpacity 
-                style={[styles.centralActionButton, styles.centralActionButtonDone]}
-                onPress={onOpenRoleAssign}
-              >
-                <Text style={styles.centralActionButtonText}>
-                  ✓ Đã gán {getAssignedPlayersForRole(currentRole.id).length}
-                </Text>
-              </TouchableOpacity>
-            );
-          }
-          
-          return (
-            <View style={[styles.centralActionButton, styles.centralActionButtonDisabled]}>
-              <Text style={styles.centralActionButtonText}>Không có hành động</Text>
-            </View>
-          );
-        })()}
-        
-        <TouchableOpacity 
-          style={styles.actionButtonSmall} 
-          onPress={onNextRole}
-        >
-          <Text style={styles.actionBtnText}>
-            {currentRoleIndex === nightSequence.length - 1 ? '✓' : '›'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </Pressable>
+          })()}
+
+          <TouchableOpacity 
+            style={styles.actionButtonSmall} 
+            onPress={onNextRole}
+          >
+            <Text style={styles.actionBtnText}>
+              {currentRoleIndex === nightSequence.length - 1 ? '✓' : '›'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}</Pressable>
+
+      <NightQueueDrawer
+        visible={queueVisible}
+        queue={drawerQueue}
+        currentIndex={currentRoleIndex}
+        actionMap={drawerActionMap}
+        onJumpToRole={(index) => {
+          onJumpToRole(index);
+          setQueueVisible(false);
+        }}
+        onClose={() => setQueueVisible(false)}
+      />
+    </>
   );
 }

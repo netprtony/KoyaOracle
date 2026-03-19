@@ -11,21 +11,22 @@ export default function GameMasterBoardScreen() {
 
   const {
     session, isNightPhase, nightSequence, currentRoleIndex,
-    roleTimerDuration, swipeEffect, isPhysicalCardMode, isNight1,
-    shouldShowRoleAssignment, shouldShowViewRole,
+    roleTimerDuration, isPhysicalCardMode, isNight1,
+    shouldShowRoleAssignment,
     availableRoles, alivePlayers, lynchedPlayer,
     daySubPhase, setDaySubPhase, timeRemaining, isTimerRunning, setIsTimerRunning,
     lynchTarget, setLynchTarget,
     isSidebarOpen, setIsSidebarOpen,
     getRoleQuantity,
     handlePreviousRole, handleNextRole,
-    handleOpenRoleAssign, handleViewRole,
+    handleJumpToNightRole,
+    handleOpenRoleAssign,
     setShowPlayerListModal, setShowDualActionModal,
     handleOpenSkillModal, setShowRoleDesc,
     handleStartDiscussion, handleConfirmLynch,
     handleAfterAnnouncement, handleNextNight,
     handlePauseGame, handleRestartGame, handleEndGame,
-    handleOpenOrderSettings, handleOpenSwipeEffectPicker, handleOpenTimerSettings,
+    handleOpenOrderSettings, handleOpenTimerSettings,
   } = state;
 
   if (!session) {
@@ -55,16 +56,14 @@ export default function GameMasterBoardScreen() {
             nightSequence={nightSequence}
             currentRoleIndex={currentRoleIndex}
             roleTimerDuration={roleTimerDuration}
-            swipeEffect={swipeEffect}
             isPhysicalCardMode={isPhysicalCardMode}
             isNight1={isNight1}
             shouldShowRoleAssignment={shouldShowRoleAssignment}
-            shouldShowViewRole={shouldShowViewRole}
             getRoleQuantity={getRoleQuantity}
             onPreviousRole={handlePreviousRole}
             onNextRole={handleNextRole}
+            onJumpToRole={handleJumpToNightRole}
             onOpenRoleAssign={handleOpenRoleAssign}
-            onViewRole={handleViewRole}
             onShowPlayerList={() => setShowPlayerListModal(true)}
             onShowDualAction={() => setShowDualActionModal(true)}
             onOpenSkillModal={() => handleOpenSkillModal()}
@@ -102,7 +101,6 @@ export default function GameMasterBoardScreen() {
         onRestart={handleRestartGame}
         onEndGame={handleEndGame}
         onOpenOrderSettings={handleOpenOrderSettings}
-        onOpenSwipeEffect={handleOpenSwipeEffectPicker}
         onOpenTimerSettings={handleOpenTimerSettings}
         matchLog={session.matchLog}
       />

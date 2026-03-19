@@ -1,6 +1,7 @@
 import { Role, NightAction as RoleNightAction, SkillType } from '../../assets/role-types';
 
 export * from '../../assets/role-types';
+export * from './nightPhase.types';
 
 // ============================================
 // GAME MODES

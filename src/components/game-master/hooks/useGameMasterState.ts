@@ -6,7 +6,6 @@ import { getNightSequence } from '../../../engine/nightSequence';
 import { getRoleManager } from '../../../engine/RoleManager';
 import { DaySubPhase, NightOrderDefinition } from '../../../types';
 import { NightAction } from '../../../../assets/role-types';
-import { SwipeEffect } from '../../SwipeableCardStack';
 import { resolveNightEvents } from '../../../engine/NightResolution';
 import { WinResult } from '../../../engine/WinConditionChecker';
 
@@ -56,10 +55,6 @@ export function useGameMasterState() {
   // Role Assignment Modal States (Night 1 - Physical Card)
   const [showRoleAssignModal, setShowRoleAssignModal] = useState(false);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
-  
-  // View Role Modal States (Night 2+ - Physical Card)
-  const [showViewRoleModal, setShowViewRoleModal] = useState(false);
-  const [viewingRole, setViewingRole] = useState<{ name: string; icon?: string } | null>(null);
   
   // Day sub-phase state
   const [daySubPhase, setDaySubPhase] = useState<DaySubPhase>('SUNRISE');
@@ -119,19 +114,13 @@ export function useGameMasterState() {
   const [showRedRidingHoodRevealModal, setShowRedRidingHoodRevealModal] = useState(false);
   const [redRidingHoodRevealData, setRedRidingHoodRevealData] = useState<{ wolfId: string; wolfName: string } | null>(null);
   
-  // Swipe Effect Settings
-  const [swipeEffect, setSwipeEffect] = useState<SwipeEffect>('default');
-  const [showSwipeEffectPicker, setShowSwipeEffectPicker] = useState(false);
-  
   // Timer Settings
   const [roleTimerDuration, setRoleTimerDuration] = useState(300); // 5 minutes default
   const [showTimerSettings, setShowTimerSettings] = useState(false);
   
-  // Dual Action Modal (for Witch)
   const [showDualActionModal, setShowDualActionModal] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const viewRoleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Timer logic
   useEffect(() => {
@@ -155,15 +144,6 @@ export function useGameMasterState() {
     return () => clearInterval(timerRef.current!);
   }, [isTimerRunning]);
   
-  // Clear view role timer on unmount
-  useEffect(() => {
-    return () => {
-      if (viewRoleTimerRef.current) {
-        clearTimeout(viewRoleTimerRef.current);
-      }
-    };
-  }, []);
-
   useEffect(() => {
     if (!session) {
       router.replace('/(tabs)/game');
@@ -184,55 +164,6 @@ export function useGameMasterState() {
   const currentRole = isNightPhase ? nightSequence[currentRoleIndex] : null;
   const alivePlayers = session?.players.filter(p => p.isAlive) || [];
 
-  // ── Auto-open Cupid modal when Night 1 reaches Cupid's turn ──────────
-  useEffect(() => {
-    if (
-      currentRole?.id === 'than_tinh_yeu' &&
-      session?.currentPhase.number === 1 &&
-      !session?.loversAssigned &&
-      !showCupidModal &&
-      !showLoversReveal
-    ) {
-      setShowCupidModal(true);
-    }
-  }, [currentRoleIndex, currentRole?.id, session?.currentPhase.number, session?.loversAssigned]);
-
-  // ── Auto-open Cult Leader modal when reaching Cult Leader's turn ──────
-  useEffect(() => {
-    if (
-      currentRole?.id === 'chu_giao_phai' &&
-      !showCultRecruitModal
-    ) {
-      // Only auto-open if leader is alive
-      const leader = session?.players.find(p => p.roleId === 'chu_giao_phai' && p.isAlive);
-      if (leader) {
-        setShowCultRecruitModal(true);
-      }
-    }
-  }, [currentRoleIndex, currentRole?.id]);
-
-  useEffect(() => {
-    if (
-      currentRole?.id === 'du_con' &&
-      session?.currentPhase.number === 1 &&
-      !session?.duConAbilityUsed &&
-      !showDuConModal
-    ) {
-      setShowDuConModal(true);
-    }
-  }, [currentRole?.id, session?.currentPhase.number, session?.duConAbilityUsed, showDuConModal]);
-
-  useEffect(() => {
-    if (
-      currentRole?.id === 'nhan_ban' &&
-      session?.currentPhase.number === 1 &&
-      !session?.doppelgangerTargetId &&
-      !showDoppelgangerModal
-    ) {
-      setShowDoppelgangerModal(true);
-    }
-  }, [currentRole?.id, session?.currentPhase.number, session?.doppelgangerTargetId, showDoppelgangerModal]);
-
   useEffect(() => {
     if (
       currentRole?.id === 'khan_do' &&
@@ -246,7 +177,6 @@ export function useGameMasterState() {
   const isPhysicalCardMode = session?.mode === 'PHYSICAL_CARD';
   const isNight1 = session?.currentPhase.type === 'NIGHT' && session.currentPhase.number === 1;
   const shouldShowRoleAssignment = isPhysicalCardMode && isNight1;
-  const shouldShowViewRole = isPhysicalCardMode && !isNight1 && isNightPhase;
 
   // Helper functions with safe checks
   const getRoleQuantity = (roleId: string) => {
@@ -918,8 +848,8 @@ export function useGameMasterState() {
         }
       }
 
-      if (currentRole) {
-        // Auto-record current state
+      if (currentRole && selectedTargetId !== null) {
+        // Auto-record only if target was explicitly selected via legacy modal
         recordNightAction(currentRole.id, selectedTargetId, activeActionType);
       }
       
@@ -999,6 +929,14 @@ export function useGameMasterState() {
     }
   }, [currentRoleIndex]);
 
+  const handleJumpToNightRole = useCallback((index: number) => {
+    if (!isNightPhase) return;
+    const maxIndex = Math.max(0, nightSequence.length - 1);
+    const nextIndex = Math.max(0, Math.min(index, maxIndex));
+    setCurrentRoleIndex(nextIndex);
+    setSelectedTargetId(null);
+  }, [isNightPhase, nightSequence.length]);
+
 
   const lynchedPlayer = (session && lynchTarget) ? session.players.find(p => p.id === lynchTarget) : null;
 
@@ -1051,26 +989,6 @@ export function useGameMasterState() {
     });
 
     setShowRoleAssignModal(false);
-  };
-
-  const handleViewRole = () => {
-    if (currentRole) {
-      setViewingRole({ name: currentRole.name, icon: currentRole.icon });
-      setShowViewRoleModal(true);
-      
-      viewRoleTimerRef.current = setTimeout(() => {
-        setShowViewRoleModal(false);
-        setViewingRole(null);
-      }, 2000);
-    }
-  };
-
-  const handleCloseViewRole = () => {
-    if (viewRoleTimerRef.current) {
-      clearTimeout(viewRoleTimerRef.current);
-    }
-    setShowViewRoleModal(false);
-    setViewingRole(null);
   };
 
   // Day Phase Handlers
@@ -1210,13 +1128,7 @@ export function useGameMasterState() {
     setShowOrderSettings(true);
   };
 
-  const handleOpenSwipeEffectPicker = () => {
-    setIsSidebarOpen(false);
-    setShowSwipeEffectPicker(true);
-  };
-
-  const handleOpenTimerSettings = () => {
-    setIsSidebarOpen(false);
+  const handleOpenTimerSettings = () => {    setIsSidebarOpen(false);
     setShowTimerSettings(true);
   };
 
@@ -1250,11 +1162,11 @@ export function useGameMasterState() {
 
     // Derived values
     isNightPhase, nightSequence, currentRole, alivePlayers,
-    isPhysicalCardMode, isNight1, shouldShowRoleAssignment, shouldShowViewRole,
+    isPhysicalCardMode, isNight1, shouldShowRoleAssignment,
     lynchedPlayer,
 
     // Night navigation
-    currentRoleIndex, handlePreviousRole, handleNextRole,
+    currentRoleIndex, handlePreviousRole, handleNextRole, handleJumpToNightRole,
 
     // Day phase
     daySubPhase, setDaySubPhase, timeRemaining, isTimerRunning, setIsTimerRunning,
@@ -1264,11 +1176,9 @@ export function useGameMasterState() {
     // Sidebar
     isSidebarOpen, setIsSidebarOpen,
     handlePauseGame, handleRestartGame, handleEndGame,
-    handleOpenOrderSettings, handleOpenSwipeEffectPicker, handleOpenTimerSettings,
+    handleOpenOrderSettings, handleOpenTimerSettings,
 
     // Settings
-    swipeEffect, setSwipeEffect,
-    showSwipeEffectPicker, setShowSwipeEffectPicker,
     roleTimerDuration, setRoleTimerDuration,
     showTimerSettings, setShowTimerSettings,
 
@@ -1286,10 +1196,6 @@ export function useGameMasterState() {
     selectedPlayerIds,
     handleOpenRoleAssign, handleTogglePlayerSelection, handleSaveRoleAssignment,
     getRoleQuantity, getAssignedPlayersForRole,
-
-    // View role
-    showViewRoleModal, viewingRole,
-    handleViewRole, handleCloseViewRole,
 
     // Role description
     showRoleDesc, setShowRoleDesc,
@@ -1325,8 +1231,7 @@ export function useGameMasterState() {
     handleConfirmScry, handleSkipScry,
 
     // Traitor
-    showTraitorModal, setShowTraitorModal,
-    handleConfirmTraitor, handleSkipTraitor,
+    showTraitorModal, setShowTraitorModal, handleConfirmTraitor, handleSkipTraitor,
 
     // Bewitched
     showBewitchedAlert, handleDismissBewitchedAlert,
@@ -1353,7 +1258,7 @@ export function useGameMasterState() {
 
     // Helpers
     getCurrentNightAction, getWolfVictim,
-  };
-}
+    };
+    }
 
 export type GameMasterState = ReturnType<typeof useGameMasterState>;

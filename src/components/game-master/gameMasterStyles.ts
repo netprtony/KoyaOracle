@@ -45,6 +45,20 @@ export const gameMasterStyles = StyleSheet.create({
         flex: 1,
         position: 'relative',
     },
+    cardContainer: {
+        flex: 1,
+        marginHorizontal: 20,
+        marginTop: 60,
+        marginBottom: 80,
+        borderRadius: 28,
+        overflow: 'hidden',
+        backgroundColor: '#1F2937',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10,
+    },
     timerBar: {
         position: 'absolute',
         top: 0,
@@ -73,6 +87,24 @@ export const gameMasterStyles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 16,
+    },
+    headerActionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    queueBtn: {
+        minWidth: 30,
+        height: 30,
+        borderRadius: 8,
+        backgroundColor: '#312E81',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    queueBtnText: {
+        color: '#E5E7EB',
+        fontWeight: '700',
+        fontSize: 12,
     },
     cardCount: {
         color: '#6B7280',
@@ -203,14 +235,6 @@ export const gameMasterStyles = StyleSheet.create({
         fontSize: 18,
         textAlign: 'center',
         width: '80%',
-    },
-    swipeHint: {
-        marginTop: 40,
-        color: '#4B5563',
-        fontSize: 14,
-        fontWeight: 'bold',
-        letterSpacing: 1,
-        textTransform: 'uppercase',
     },
 
     // DUAL ACTION STYLES
@@ -785,54 +809,6 @@ export const gameMasterStyles = StyleSheet.create({
         color: '#6366F1',
         fontWeight: 'bold',
         fontSize: 16,
-    },
-
-    // View Role Modal (Night 2+)
-    viewRoleCard: {
-        backgroundColor: '#1F2937',
-        borderRadius: 24,
-        padding: 30,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-        elevation: 20,
-        maxWidth: '80%'
-    },
-    viewRoleIcon: {
-        fontSize: 64,
-        marginBottom: 16,
-    },
-    viewRoleName: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#FFF',
-        marginBottom: 20,
-        textAlign: 'center',
-    },
-    viewRolePlayersList: {
-        width: '100%',
-        marginBottom: 20,
-    },
-    viewRolePlayerName: {
-        fontSize: 18,
-        color: '#E5E7EB',
-        marginBottom: 6,
-        textAlign: 'center',
-    },
-    viewRoleHint: {
-        fontSize: 12,
-        color: '#6B7280',
-        fontStyle: 'italic',
-    },
-    viewRoleBtn: {
-        padding: 8,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 8,
-    },
-    viewRoleBtnText: {
-        fontSize: 18,
     },
 
     // PLAYER LIST MODAL

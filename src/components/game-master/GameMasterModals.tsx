@@ -4,7 +4,6 @@ import { ScrollView } from 'react-native-gesture-handler';
 import { useGameStore } from '../../store/gameStore';
 import { gameMasterStyles as styles } from './gameMasterStyles';
 import { getSkillDisplay } from './constants';
-import { SwipeEffectPicker } from '../SwipeEffectPicker';
 import { TimerSettingsPicker } from '../TimerSettingsPicker';
 import { NightOrderEditor } from '../NightOrderEditor';
 import { MorningReportModal } from '../MorningReportModal';
@@ -34,7 +33,6 @@ export function GameMasterModals(props: GameMasterState) {
     showRoleAssignModal, setShowRoleAssignModal,
     selectedPlayerIds, getRoleQuantity, getAssignedPlayersForRole,
     handleTogglePlayerSelection, handleSaveRoleAssignment,
-    showViewRoleModal, viewingRole, handleCloseViewRole,
     showRoleDesc, setShowRoleDesc,
     showPlayerListModal, setShowPlayerListModal,
     showOrderSettings, setShowOrderSettings, handleSaveOrderSettings,
@@ -58,8 +56,6 @@ export function GameMasterModals(props: GameMasterState) {
     showRedRidingHoodRevealModal,
     redRidingHoodRevealData, handleCloseRedRidingHoodReveal,
     showVictoryModal, setShowVictoryModal, gameWinner, setGameWinner,
-    swipeEffect, setSwipeEffect,
-    showSwipeEffectPicker, setShowSwipeEffectPicker,
     roleTimerDuration, setRoleTimerDuration,
     showTimerSettings, setShowTimerSettings,
     handleOpenSkillModal,
@@ -72,13 +68,6 @@ export function GameMasterModals(props: GameMasterState) {
 
   return (
     <>
-      <SwipeEffectPicker
-        visible={showSwipeEffectPicker}
-        onClose={() => setShowSwipeEffectPicker(false)}
-        selectedEffect={swipeEffect}
-        onSelectEffect={setSwipeEffect}
-      />
-
       {/* TIMER SETTINGS PICKER */}
       <TimerSettingsPicker
         visible={showTimerSettings}
@@ -550,36 +539,6 @@ export function GameMasterModals(props: GameMasterState) {
             </View>
           </View>
         </View>
-      </Modal>
-
-      {/* VIEW ROLE MODAL (Night 2+ - Physical Card) */}
-      <Modal visible={showViewRoleModal} animationType="fade" transparent onRequestClose={handleCloseViewRole}>
-        <TouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1}
-          onPress={handleCloseViewRole}
-        >
-          <View style={styles.viewRoleCard}>
-            {viewingRole && (
-              <>
-                <Text style={styles.viewRoleIcon}>{viewingRole.icon}</Text>
-                <Text style={styles.viewRoleName}>{viewingRole.name}</Text>
-                
-                {currentRole && getAssignedPlayersForRole(currentRole.id).length > 0 && (
-                   <View style={styles.viewRolePlayersList}>
-                      {getAssignedPlayersForRole(currentRole.id).map(p => (
-                        <Text key={p.id} style={[styles.viewRolePlayerName, { color: p.color }]}>
-                          • {p.name}
-                        </Text>
-                      ))}
-                   </View>
-                )}
-
-                <Text style={styles.viewRoleHint}>Tự động đóng sau 2 giây...</Text>
-              </>
-            )}
-          </View>
-        </TouchableOpacity>
       </Modal>
 
       {/* PLAYER LIST MODAL (Long Press) */}

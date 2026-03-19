@@ -1,0 +1,242 @@
+
+<style>
+.stab{font-size:11px;padding:5px 11px;border-radius:20px;border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-secondary);cursor:pointer;line-height:1}
+.stab.on{background:var(--color-background-primary);color:var(--color-text-primary);border-color:var(--color-border-primary)}
+.scr{display:none;flex-direction:column;padding:20px 16px 16px;min-height:510px}
+.scr.on{display:flex}
+.pbtn{width:100%;padding:13px;border-radius:10px;border:none;font-size:14px;font-weight:500;cursor:pointer;margin-top:4px}
+.pred{background:#BF1E1E;color:#F2EAE0}
+.pghost{background:transparent;border:1px solid #242432;color:#585868;cursor:pointer}
+.wcard{display:flex;align-items:center;gap:10px;padding:11px 12px;background:#121218;border-radius:8px;border:1px solid #1C1C26;margin-bottom:6px}
+.wtag{font-size:11px;padding:2px 7px;border-radius:4px;font-weight:500;white-space:nowrap}
+.tgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.tc{padding:11px 8px;background:#121218;border-radius:8px;border:1px solid #1C1C26;cursor:pointer;text-align:center;user-select:none}
+.tc.on{border-color:#BF1E1E;background:#180808}
+.vrow{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#121218;border-radius:8px;border:1px solid #1C1C26;margin-bottom:6px}
+.tog{width:38px;height:21px;background:#20202E;border-radius:11px;cursor:pointer;position:relative;border:none;flex-shrink:0;transition:background .15s}
+.tog.on{background:#BF1E1E}
+.tog::after{content:'';width:17px;height:17px;background:#E0D8C8;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .15s}
+.tog.on::after{left:19px}
+.note{background:var(--color-background-primary);border-radius:var(--border-radius-lg);border:0.5px solid var(--color-border-tertiary);padding:.875rem 1rem;width:100%;max-width:360px;box-sizing:border-box}
+</style>
+
+<div style="background:var(--color-background-secondary);padding:1.25rem 1rem;border-radius:var(--border-radius-lg);display:flex;flex-direction:column;align-items:center;gap:1rem">
+
+<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center">
+  <button onclick="gs(0)" id="t0" class="stab on">1 · Gọi sói</button>
+  <button onclick="gs(1)" id="t1" class="stab">2 · Bầy đàn</button>
+  <button onclick="gs(2)" id="t2" class="stab">3 · Săn mồi</button>
+  <button onclick="gs(3)" id="t3" class="stab">4 · Vote Sói Con</button>
+  <button onclick="gs(4)" id="t4" class="stab">5 · Báo thù</button>
+</div>
+
+<div style="width:340px;background:#0B0B10;border-radius:26px;border:1.5px solid #1C1C26;overflow:hidden">
+
+<div class="scr on" id="s0">
+  <div style="text-align:center;padding-top:10px">
+    <p style="font-size:11px;color:#484858;letter-spacing:3px;margin:0 0 18px">ĐÊM 3 &nbsp;·&nbsp; GIAI ĐOẠN ĐÊM</p>
+    <div style="width:66px;height:66px;border-radius:50%;border:2px solid #BF1E1E;margin:0 auto 14px;display:flex;align-items:center;justify-content:center">
+      <span style="font-size:13px;font-weight:500;color:#C8B8A8;letter-spacing:2px">SOI</span>
+    </div>
+    <p style="font-size:27px;font-weight:500;color:#E0D8C8;letter-spacing:5px;margin:0">BẦY SÓI</p>
+    <p style="font-size:27px;font-weight:500;color:#BF1E1E;letter-spacing:5px;margin:2px 0 0">THỨC DẬY</p>
+    <div style="width:40px;height:1px;background:#BF1E1E;margin:12px auto"></div>
+    <p style="font-size:11px;color:#484858;margin:0 0 16px">3 đang thức &nbsp;·&nbsp; Nanh Sói ngủ đêm nay</p>
+    <div style="display:flex;gap:8px;justify-content:center;margin-bottom:6px">
+      <div style="text-align:center">
+        <div style="width:44px;height:44px;border-radius:10px;background:#180808;border:1.5px solid #BF1E1E;margin:0 auto 5px;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;font-weight:500;color:#D0A8A8">SÓI</span></div>
+        <p style="font-size:11px;color:#585858;margin:0">A</p>
+      </div>
+      <div style="text-align:center">
+        <div style="width:44px;height:44px;border-radius:10px;background:#181000;border:1.5px solid #C87800;margin:0 auto 5px;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;font-weight:500;color:#D8C060">SC</span></div>
+        <p style="font-size:11px;color:#585858;margin:0">B</p>
+      </div>
+      <div style="text-align:center">
+        <div style="width:44px;height:44px;border-radius:10px;background:#180808;border:1.5px solid #BF1E1E;margin:0 auto 5px;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;font-weight:500;color:#D0A8A8">SĐ</span></div>
+        <p style="font-size:11px;color:#585858;margin:0">C</p>
+      </div>
+      <div style="text-align:center;opacity:0.35">
+        <div style="width:44px;height:44px;border-radius:10px;background:#101014;border:1.5px solid #1A1A22;margin:0 auto 5px;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;font-weight:500;color:#383848">NS</span></div>
+        <p style="font-size:11px;color:#383838;margin:0">D</p>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1"></div>
+  <button class="pbtn pred" onclick="gs(1)" style="margin-top:14px">Tiếp theo ›</button>
+</div>
+
+<div class="scr" id="s1">
+  <p style="font-size:11px;color:#484858;letter-spacing:2px;margin:0 0 12px">THÀNH VIÊN BẦY</p>
+  <div class="wcard">
+    <div style="width:36px;height:36px;border-radius:8px;background:#180808;border:1px solid #BF1E1E;display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="font-size:11px;font-weight:500;color:#C8A8A8">SÓI</span></div>
+    <div style="flex:1;min-width:0">
+      <p style="font-size:13px;font-weight:500;color:#E0D8C8;margin:0">Nguyễn A</p>
+      <p style="font-size:11px;color:#484858;margin:0">Sói (Werewolf)</p>
+    </div>
+    <span class="wtag" style="background:#1A0808;color:#BF5050">THỨC</span>
+  </div>
+  <div class="wcard" style="border-color:#242014">
+    <div style="width:36px;height:36px;border-radius:8px;background:#181000;border:1px solid #C87800;display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="font-size:11px;font-weight:500;color:#D8C060">SC</span></div>
+    <div style="flex:1;min-width:0">
+      <p style="font-size:13px;font-weight:500;color:#E0D8C8;margin:0">Trần B</p>
+      <p style="font-size:11px;color:#484858;margin:0">Sói Con</p>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+      <span class="wtag" style="background:#1A0808;color:#BF5050">THỨC</span>
+      <span class="wtag" style="background:#181000;color:#C87800">CÓ THỂ BỊ PHẠT</span>
+    </div>
+  </div>
+  <div class="wcard">
+    <div style="width:36px;height:36px;border-radius:8px;background:#180808;border:1px solid #BF1E1E;display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="font-size:11px;font-weight:500;color:#C8A8A8">SĐ</span></div>
+    <div style="flex:1;min-width:0">
+      <p style="font-size:13px;font-weight:500;color:#E0D8C8;margin:0">Lê C</p>
+      <p style="font-size:11px;color:#484858;margin:0">Sói Đơn Độc</p>
+    </div>
+    <span class="wtag" style="background:#1A0808;color:#BF5050">THỨC</span>
+  </div>
+  <div class="wcard" style="opacity:0.38">
+    <div style="width:36px;height:36px;border-radius:8px;background:#0E0E14;border:1px solid #181820;display:flex;align-items:center;justify-content:center;flex-shrink:0"><span style="font-size:11px;font-weight:500;color:#363646">NS</span></div>
+    <div style="flex:1;min-width:0">
+      <p style="font-size:13px;font-weight:500;color:#484858;margin:0">Phạm D</p>
+      <p style="font-size:11px;color:#383848;margin:0">Nanh Sói</p>
+    </div>
+    <span class="wtag" style="background:#0E0E14;color:#404050">NGỦ</span>
+  </div>
+  <p style="font-size:11px;color:#404050;margin:3px 0 10px 2px">Nanh Sói thức dậy khi là sói cuối cùng</p>
+  <div style="border-top:1px solid #181820;margin:2px 0 10px"></div>
+  <div style="background:#121218;border-radius:8px;border:1px solid #1C1C26;padding:10px 12px;margin-bottom:6px">
+    <p style="font-size:12px;color:#C87800;margin:0 0 3px;font-weight:500">Trừng phạt Sói Con?</p>
+    <p style="font-size:11px;color:#484858;margin:0 0 7px">Cần 100% đồng ý, kể cả Sói Con tự đồng ý</p>
+    <button onclick="gs(3)" style="font-size:11px;color:#BF1E1E;background:transparent;border:none;cursor:pointer;padding:0">Mở màn hình biểu quyết ›</button>
+  </div>
+  <div style="flex:1"></div>
+  <button class="pbtn pred" onclick="gs(2)" style="margin-top:6px">Chọn mục tiêu ›</button>
+</div>
+
+<div class="scr" id="s2">
+  <p style="font-size:11px;color:#484858;letter-spacing:2px;margin:0 0 3px">CHỌN MỤC TIÊU</p>
+  <p style="font-size:11px;color:#383848;margin:0 0 11px">Chạm để chọn &nbsp;·&nbsp; 1 người</p>
+  <div class="tgrid">
+    <div class="tc" onclick="selT(this,'Du Côn')"><p style="font-size:11px;color:#383848;margin:0 0 3px">01</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Du Côn</p></div>
+    <div class="tc" onclick="selT(this,'Chủ Giáo Phái')"><p style="font-size:11px;color:#383848;margin:0 0 3px">02</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Chủ Giáo Phái</p></div>
+    <div class="tc" onclick="selT(this,'Kẻ Chán Đời')"><p style="font-size:11px;color:#383848;margin:0 0 3px">03</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Kẻ Chán Đời</p></div>
+    <div class="tc" onclick="selT(this,'Người Bệnh')"><p style="font-size:11px;color:#383848;margin:0 0 3px">04</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Người Bệnh</p></div>
+    <div class="tc" onclick="selT(this,'Bà Ngoại')"><p style="font-size:11px;color:#383848;margin:0 0 3px">05</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Bà Ngoại</p></div>
+    <div class="tc" onclick="selT(this,'Khăn Đỏ')"><p style="font-size:11px;color:#383848;margin:0 0 3px">06</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Khăn Đỏ</p></div>
+    <div class="tc" onclick="selT(this,'Thần Tình Yêu')"><p style="font-size:11px;color:#383848;margin:0 0 3px">07</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Thần Tình Yêu</p></div>
+    <div class="tc" onclick="selT(this,'Bảo Vệ')"><p style="font-size:11px;color:#383848;margin:0 0 3px">08</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Bảo Vệ</p></div>
+    <div class="tc" onclick="selT(this,'Nhân Bản')"><p style="font-size:11px;color:#383848;margin:0 0 3px">09</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Nhân Bản</p></div>
+    <div class="tc" onclick="selT(this,'Tiên Tri')"><p style="font-size:11px;color:#383848;margin:0 0 3px">10</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Tiên Tri</p></div>
+  </div>
+  <p id="sI" style="font-size:12px;color:#404050;text-align:center;margin:10px 0 6px">Chưa chọn mục tiêu</p>
+  <button id="hBtn" class="pbtn pghost" disabled style="opacity:0.35">Xác nhận</button>
+</div>
+
+<div class="scr" id="s3">
+  <p style="font-size:11px;color:#484858;letter-spacing:2px;margin:0 0 5px">BIỂU QUYẾT</p>
+  <p style="font-size:17px;font-weight:500;color:#E0D8C8;margin:0 0 3px">Trừng phạt Sói Con</p>
+  <p style="font-size:11px;color:#484858;margin:0 0 14px;line-height:1.5">Cần toàn bộ bầy đồng ý. Sói Con đã tự đồng ý.</p>
+  <div class="vrow">
+    <div><p style="font-size:13px;font-weight:500;color:#C8C0B0;margin:0">Sói (Nguyễn A)</p><p style="font-size:11px;color:#484858;margin:0">Werewolf</p></div>
+    <button class="tog" id="v0" onclick="togV(0)"></button>
+  </div>
+  <div class="vrow">
+    <div><p style="font-size:13px;font-weight:500;color:#C8C0B0;margin:0">Sói Đơn Độc (Lê C)</p><p style="font-size:11px;color:#484858;margin:0">Lone Wolf</p></div>
+    <button class="tog" id="v1" onclick="togV(1)"></button>
+  </div>
+  <div class="vrow" style="border-color:#222010">
+    <div><p style="font-size:13px;font-weight:500;color:#D8C060;margin:0">Sói Con (Trần B)</p><p style="font-size:11px;color:#B07820;margin:0">Wolf Cub · Tự đồng ý</p></div>
+    <button class="tog on" style="pointer-events:none"></button>
+  </div>
+  <div style="text-align:center;padding:13px 0;border-top:1px solid #181820;margin-top:10px">
+    <span style="font-size:26px;font-weight:500;color:#E0D8C8" id="vc">1</span>
+    <span style="font-size:14px;color:#484858"> / 3</span>
+    <p id="vs" style="font-size:11px;color:#484858;margin:3px 0 0">Chưa đủ số phiếu</p>
+  </div>
+  <button id="vB" class="pbtn" style="background:#180808;color:#604040;border:1px solid #2E1818;border-radius:10px;padding:13px;font-size:14px;font-weight:500;margin-bottom:6px" disabled>Xác nhận trừng phạt</button>
+  <button class="pbtn pghost" onclick="gs(1)">Hủy</button>
+</div>
+
+<div class="scr" id="s4">
+  <div style="background:#160000;border-bottom:2px solid #8A1010;margin:-20px -16px 14px;padding:11px 16px;display:flex;align-items:center;gap:8px">
+    <div style="width:6px;height:6px;background:#BF1E1E;border-radius:50%;flex-shrink:0"></div>
+    <span style="font-size:11px;font-weight:500;color:#BF1E1E;letter-spacing:2px">ĐÊM BÁO THÙ</span>
+  </div>
+  <div style="background:#121218;border-radius:8px;border:1px solid #261010;padding:10px 12px;margin-bottom:11px">
+    <p style="font-size:12px;font-weight:500;color:#C08080;margin:0 0 3px">Sói Con đã ngã xuống</p>
+    <p style="font-size:11px;color:#504040;margin:0">Bầy được phép truy sát 2 người đêm nay để báo thù</p>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <p style="font-size:11px;color:#484858;margin:0">Chọn 2 mục tiêu</p>
+    <span id="rc" style="font-size:12px;font-weight:500;color:#E0D8C8;background:#180808;border:1px solid #261010;padding:2px 9px;border-radius:5px">0 / 2</span>
+  </div>
+  <div class="tgrid">
+    <div class="tc" onclick="selR(this,'Du Côn')"><p style="font-size:11px;color:#383848;margin:0 0 3px">01</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Du Côn</p></div>
+    <div class="tc" onclick="selR(this,'Chủ Giáo Phái')"><p style="font-size:11px;color:#383848;margin:0 0 3px">02</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Chủ Giáo Phái</p></div>
+    <div class="tc" onclick="selR(this,'Người Bệnh')"><p style="font-size:11px;color:#383848;margin:0 0 3px">03</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Người Bệnh</p></div>
+    <div class="tc" onclick="selR(this,'Bà Ngoại')"><p style="font-size:11px;color:#383848;margin:0 0 3px">04</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Bà Ngoại</p></div>
+    <div class="tc" onclick="selR(this,'Tiên Tri')"><p style="font-size:11px;color:#383848;margin:0 0 3px">05</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Tiên Tri</p></div>
+    <div class="tc" onclick="selR(this,'Nhân Bản')"><p style="font-size:11px;color:#383848;margin:0 0 3px">06</p><p style="font-size:12px;font-weight:500;color:#B8B0A0;margin:0">Nhân Bản</p></div>
+  </div>
+  <div style="flex:1"></div>
+  <button id="rB" class="pbtn pghost" disabled style="margin-top:10px;opacity:0.35">Xác nhận 2 mục tiêu</button>
+</div>
+
+</div>
+
+<div id="notes" style="width:100%;max-width:360px">
+<div id="n0" class="note"><p style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin:0 0 5px">Screen 1 — Gọi Sói</p><p style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin:0">Avatar bầy hiển thị ngay trên màn hình chào — Nanh Sói mờ dần (<span style="opacity:0.38">0.38 opacity</span>) cho GM thấy không cần gọi dậy, không cần đọc chú thích. Tên viết tắt trong circle cung cấp visual cue nhanh về role order.</p></div>
+<div id="n1" class="note" style="display:none"><p style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin:0 0 5px">Screen 2 — Thành Viên Bầy</p><p style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin:0">Badge amber "CÓ THỂ BỊ PHẠT" trên Sói Con nhắc GM về tính năng đặc biệt không cần tra tài liệu. Tính năng vote được expose nhẹ dưới dạng link, không cản luồng săn mồi chính.</p></div>
+<div id="n2" class="note" style="display:none"><p style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin:0 0 5px">Screen 3 — Chọn Mục Tiêu</p><p style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin:0">Chỉ 10 người ngoài phe Sói — loại bỏ hoàn toàn lỗi chọn nhầm wolf. Tap target ~44px tối ưu cho ánh sáng yếu. Số thứ tự giúp GM map với vị trí ngồi bàn thực tế.</p></div>
+<div id="n3" class="note" style="display:none"><p style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin:0 0 5px">Screen 4 — Biểu Quyết Sói Con</p><p style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin:0">Bộ đếm "X / 3" cập nhật realtime. Sói Con pre-toggled và locked (pointer-events:none). Nút xác nhận chỉ unlock khi đủ 3/3 — không thể thực hiện khi thiếu phiếu. Thử toggle hai nút trên.</p></div>
+<div id="n4" class="note" style="display:none"><p style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin:0 0 5px">Screen 5 — Đêm Báo Thù</p><p style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin:0">Header đỏ đậm + banner cảnh báo phân biệt rõ đây là đêm đặc biệt — GM không thể nhầm với đêm thường. Counter "0/2" persistent, nút unlock đúng khi chọn 2. Thử chọn 2 người chơi bên trên.</p></div>
+</div>
+
+</div>
+
+<script>
+const ns=['n0','n1','n2','n3','n4'];
+function gs(n){
+  for(let i=0;i<5;i++){
+    document.getElementById('s'+i).className='scr'+(i===n?' on':'');
+    document.getElementById('t'+i).className='stab'+(i===n?' on':'');
+    document.getElementById(ns[i]).style.display=i===n?'':'none';
+  }
+}
+function selT(el,name){
+  document.querySelectorAll('#s2 .tc').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+  const si=document.getElementById('sI');
+  si.textContent='Mục tiêu: '+name;si.style.color='#BF1E1E';
+  const b=document.getElementById('hBtn');
+  b.disabled=false;b.className='pbtn pred';b.style.opacity='1';
+}
+const vs=[false,false,true];
+function togV(i){
+  if(i===2)return;
+  vs[i]=!vs[i];
+  document.getElementById('v'+i).className='tog'+(vs[i]?' on':'');
+  const c=vs.filter(Boolean).length;
+  document.getElementById('vc').textContent=c;
+  const ok=c===3;
+  const vsel=document.getElementById('vs');
+  vsel.textContent=ok?'Tất cả đã đồng ý':'Chưa đủ số phiếu';
+  vsel.style.color=ok?'#4A8A4A':'#484858';
+  const b=document.getElementById('vB');
+  b.disabled=!ok;
+  b.style.background=ok?'#BF1E1E':'#180808';
+  b.style.color=ok?'#F0E8E0':'#604040';
+  b.style.borderColor=ok?'#BF1E1E':'#2E1818';
+  b.style.cursor=ok?'pointer':'not-allowed';
+}
+let rsel=[];
+function selR(el,name){
+  if(el.classList.contains('on')){el.classList.remove('on');rsel=rsel.filter(n=>n!==name);}
+  else if(rsel.length<2){el.classList.add('on');rsel.push(name);}
+  document.getElementById('rc').textContent=rsel.length+' / 2';
+  const b=document.getElementById('rB'),ok=rsel.length===2;
+  b.disabled=!ok;
+  if(ok){b.className='pbtn pred';b.style.opacity='1';}
+  else{b.className='pbtn pghost';b.style.opacity='0.35';}
+}
+</script>
