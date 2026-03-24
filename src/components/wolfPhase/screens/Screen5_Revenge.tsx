@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
 import { TargetGrid, TargetCell, ConfirmButton, RevengeBanner } from '../components';
 import { useGameStore } from '../../../store/gameStore';
@@ -11,7 +11,7 @@ interface Screen5_RevengeProps {
 
 export function Screen5_Revenge({ onConfirm }: Screen5_RevengeProps) {
   const { session } = useGameStore();
-  const { revengeTargets, toggleRevTarget } = useWolfPhaseUIStore();
+  const { revengeTargets, toggleRevTarget, setStep } = useWolfPhaseUIStore();
 
   if (!session) return null;
 
@@ -70,6 +70,12 @@ export function Screen5_Revenge({ onConfirm }: Screen5_RevengeProps) {
           onPress={() => isReady && onConfirm(revengeTargets)} 
           disabled={!isReady}
         />
+        
+        <View style={styles.secondaryActions}>
+          <TouchableOpacity style={styles.actionBtnSmall} onPress={() => setStep(1)}>
+            <Text style={styles.actionBtnText}>‹ Quay lại</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -107,5 +113,24 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: 10,
+    gap: 12,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  actionBtnSmall: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#242432',
+    borderRadius: 10,
+  },
+  actionBtnText: {
+    color: '#585868',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

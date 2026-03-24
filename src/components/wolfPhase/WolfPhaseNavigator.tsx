@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet, BackHandler } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { WolfTheme } from '../../styles/wolfPhaseTheme';
@@ -13,51 +13,51 @@ import { useGameStore } from '../../store/gameStore';
 
 interface WolfPhaseNavigatorProps {
   onComplete: () => void;
+  onBack?: () => void;
+  onSkip?: () => void;
+  isPhysicalCardMode?: boolean;
+  onOpenRoleAssign?: (roleId: string) => void;
 }
 
-export function WolfPhaseNavigator({ onComplete }: WolfPhaseNavigatorProps) {
+export function WolfPhaseNavigator({ 
+  onComplete, 
+  onBack, 
+  onSkip, 
+  isPhysicalCardMode, 
+  onOpenRoleAssign 
+}: WolfPhaseNavigatorProps) {
   const { step, reset, setStep } = useWolfPhaseUIStore();
-  const { session, recordNightAction, markToughGuyBitten } = useGameStore();
+  const { session, recordNightAction } = useGameStore();
 
   useEffect(() => {
     // Reset UI state when component mounts (start of wolf phase)
     reset();
-    
+  }, []);
+
+  useEffect(() => {
     // Disable Android back button during wolf phase
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // If we're at the first step, we can use onBack if provided
+      if (step === 0 && onBack) {
+        onBack();
+        return true;
+      }
       // Must use explicit "Cancel" or "Back" buttons in UI
       return true; 
     });
     
     return () => {
       backHandler.remove();
-      reset(); // Clean up when leaving wolf phase
     };
-  }, []);
+  }, [step, onBack]);
 
   if (!session) return null;
 
-  const wolfCubRevengeActive = session.players.some(p => 
-    p.roleId === 'soi_con' && !p.isAlive && p.killedBy === 'werewolf' // Wait, Sói Con revenge trigger?
-  );
-  // Actually, I should check the werewolfKillBonus or similar if I can.
-  // But based on the plan's UX, let's use a derived state if possible.
-  // The plan mentioned `wolfCubRevengeActive` in useGameStore, but it's not there.
-  // I'll use a simple check for now or add it to session if I can.
-  
-  // Re-checking how revenge is triggered in PassiveSkillHandler:
-  // this.stateManager.setWerewolfKillBonus(1);
-  
-  // Since I don't have easy access to werewolfKillBonus in the session yet, 
-  // I will assume for now we can check if a Wolf Cub died recently.
-  // Better: I'll check if any wolf has werewolfKillBonus > 0 if I can, but Player doesn't have it.
-  
-  // Let's assume the user might have a better way, but I'll stick to a heuristic for now.
-  // Actually, I'll just check if current round is round after a Wolf Cub died.
-  // But let's simplify:
+  // Check for revenge night log entry from previous night
   const isRevengeNight = session.matchLog.some(l => 
-    l.type === 'GAME_EVENT' && l.message.includes('Bầy sói được giết 2 người') && 
-    l.phase.number === session.currentPhase.number - 1
+    l.type === 'GAME_EVENT' && 
+    l.message.includes('Bầy sói được giết 2 người') && 
+    l.metadata?.round === session.currentPhase.number - 1
   );
 
   const handleConfirmKill = (targetId: string) => {
@@ -79,8 +79,8 @@ export function WolfPhaseNavigator({ onComplete }: WolfPhaseNavigatorProps) {
 
   const renderScreen = () => {
     switch (step) {
-      case 0: return <Screen1_WakeCall />;
-      case 1: return <Screen2_PackList />;
+      case 0: return <Screen1_WakeCall onBack={onBack} onSkip={onSkip} />;
+      case 1: return <Screen2_PackList isPhysicalCardMode={isPhysicalCardMode} onOpenRoleAssign={onOpenRoleAssign} />;
       case 2: 
         return isRevengeNight ? (
           <Screen5_Revenge onConfirm={handleConfirmRevenge} />
@@ -88,14 +88,14 @@ export function WolfPhaseNavigator({ onComplete }: WolfPhaseNavigatorProps) {
           <Screen3_TargetSelect onConfirm={handleConfirmKill} />
         );
       case 3: return <Screen4_WolfCubVote onConfirm={handleConfirmWolfCubVote} />;
-      default: return <Screen1_WakeCall />;
+      default: return <Screen1_WakeCall onBack={onBack} onSkip={onSkip} />;
     }
   };
 
   return (
     <View style={styles.container}>
       <WolfPhaseHeader 
-        step={step === 2 && isRevengeNight ? 4 : step} 
+        step={step === 2 && isRevengeNight ? 4 : (step > 3 ? 0 : step)} 
         nightNumber={session.currentPhase.number} 
       />
       <Animated.View 

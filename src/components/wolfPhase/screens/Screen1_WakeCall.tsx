@@ -1,11 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
 import { WolfAvatarRow, ConfirmButton } from '../components';
 import { useGameStore } from '../../../store/gameStore';
 import { useWolfPhaseUIStore } from '../../../store/wolfPhaseUIStore';
 
-export function Screen1_WakeCall() {
+interface Screen1Props {
+  onBack?: () => void;
+  onSkip?: () => void;
+}
+
+export function Screen1_WakeCall({ onBack, onSkip }: Screen1Props) {
   const { session } = useGameStore();
   const setStep = useWolfPhaseUIStore(s => s.setStep);
 
@@ -53,6 +58,19 @@ export function Screen1_WakeCall() {
 
       <View style={styles.footer}>
         <ConfirmButton title="Tiếp theo ›" onPress={() => setStep(1)} />
+        
+        <View style={styles.secondaryActions}>
+          {onBack && (
+            <TouchableOpacity style={styles.actionBtnSmall} onPress={onBack}>
+              <Text style={styles.actionBtnText}>‹ Quay lại</Text>
+            </TouchableOpacity>
+          )}
+          {onSkip && (
+            <TouchableOpacity style={styles.actionBtnSmall} onPress={onSkip}>
+              <Text style={styles.actionBtnText}>Bỏ qua đêm nay</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -116,5 +134,25 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
     marginTop: 14,
+    gap: 12,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  actionBtnSmall: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#242432',
+    borderRadius: 10,
+  },
+  actionBtnText: {
+    color: '#585868',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

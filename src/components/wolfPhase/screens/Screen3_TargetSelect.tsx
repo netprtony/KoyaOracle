@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
 import { TargetGrid, TargetCell, ConfirmButton } from '../components';
 import { useGameStore } from '../../../store/gameStore';
@@ -11,7 +11,7 @@ interface Screen3_TargetSelectProps {
 
 export function Screen3_TargetSelect({ onConfirm }: Screen3_TargetSelectProps) {
   const { session } = useGameStore();
-  const { selectedTarget, selectTarget } = useWolfPhaseUIStore();
+  const { selectedTarget, selectTarget, setStep } = useWolfPhaseUIStore();
 
   if (!session) return null;
 
@@ -31,13 +31,16 @@ export function Screen3_TargetSelect({ onConfirm }: Screen3_TargetSelectProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerLabel}>CHỌN MỤC TIÊU</Text>
-      <Text style={styles.hint}>Chạm để chọn &nbsp;·&nbsp; 1 người</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerLabel}>BÀN LUẬN & CHỌN MỒI</Text>
+        <Text style={styles.title}>Đêm nay giết ai?</Text>
+      </View>
       
       <ScrollView 
         style={styles.list} 
-        contentContainerStyle={{ paddingBottom: 20 }}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={true}
+        indicatorStyle="white"
       >
         <TargetGrid>
           {eligibleTargets.map((player, index) => (
@@ -52,21 +55,31 @@ export function Screen3_TargetSelect({ onConfirm }: Screen3_TargetSelectProps) {
           ))}
         </TargetGrid>
         {eligibleTargets.length === 0 && (
-          <Text style={{ color: '#484858', textAlign: 'center', marginTop: 20 }}>
-            Không có mục tiêu hợp lệ
+          <Text style={{ color: '#888898', textAlign: 'center', marginTop: 40, fontSize: 16 }}>
+            Không có mục tiêu nào hợp lệ
           </Text>
         )}
       </ScrollView>
 
       <View style={styles.footer}>
-        <Text style={[styles.statusText, selectedPlayer && { color: WolfTheme.accent.wolf }]}>
-          {selectedPlayer ? `Mục tiêu: ${selectedPlayer.name}` : 'Chưa chọn mục tiêu'}
-        </Text>
+        <View style={styles.statusBox}>
+           <Text style={[styles.statusLabel, selectedPlayer && { color: WolfTheme.accent.wolf }]}>
+             {selectedPlayer ? 'ĐÃ CHỌN MỤC TIÊU:' : 'CHƯA CHỌN MỤC TIÊU'}
+           </Text>
+           {selectedPlayer && (
+             <Text style={styles.targetNameDisplay}>{selectedPlayer.name}</Text>
+           )}
+        </View>
+
         <ConfirmButton 
           title="Xác nhận" 
           onPress={() => selectedTarget && onConfirm(selectedTarget)} 
           disabled={!selectedTarget}
         />
+        
+        <TouchableOpacity style={styles.backBtn} onPress={() => setStep(1)}>
+          <Text style={styles.backBtnText}>‹ QUAY LẠI DANH SÁCH BẦY</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -76,28 +89,65 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  headerLabel: {
-    fontSize: 11,
-    color: WolfTheme.text.muted,
-    letterSpacing: 2,
-    marginBottom: 3,
+  header: {
+    marginBottom: 16,
   },
-  hint: {
-    fontSize: 11,
-    color: WolfTheme.text.ghost,
-    marginBottom: 11,
+  headerLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#E01E1E',
+    letterSpacing: 2.5,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   list: {
     flex: 1,
+    marginHorizontal: -8, // compensate for grid padding
+  },
+  listContent: {
+    paddingHorizontal: 8,
+    paddingBottom: 40,
   },
   footer: {
-    marginTop: 10,
-    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1.5,
+    borderTopColor: '#242432',
+    gap: 12,
   },
-  statusText: {
-    fontSize: 12,
-    color: '#404050',
-    textAlign: 'center',
-    marginBottom: 6,
+  statusBox: {
+    backgroundColor: '#161620',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#242432',
+  },
+  statusLabel: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#585868',
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  targetNameDisplay: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
+  },
+  backBtn: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backBtnText: {
+    color: '#585868',
+    fontSize: 13,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
 });

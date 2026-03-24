@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
-import { VoteRow, VoteCounter, ConfirmButton, GhostButton } from '../components';
+import { VoteRow, VoteCounter, ConfirmButton } from '../components';
 import { useGameStore } from '../../../store/gameStore';
 import { useWolfPhaseUIStore } from '../../../store/wolfPhaseUIStore';
 
@@ -72,8 +72,12 @@ export function Screen4_WolfCubVote({ onConfirm }: Screen4_WolfCubVoteProps) {
           onPress={() => wolfCub && onConfirm(wolfCub.id)} 
           disabled={!isComplete}
         />
-        <View style={{ height: 6 }} />
-        <GhostButton title="Hủy" onPress={() => setStep(1)} />
+        
+        <View style={styles.secondaryActions}>
+          <TouchableOpacity style={styles.actionBtnSmall} onPress={() => setStep(1)}>
+            <Text style={styles.actionBtnText}>‹ Quay lại</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -106,5 +110,24 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: 10,
+    gap: 12,
+  },
+  secondaryActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  actionBtnSmall: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#242432',
+    borderRadius: 10,
+  },
+  actionBtnText: {
+    color: '#585868',
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

@@ -160,41 +160,47 @@ export function resolveNightEvents(
     });
 
     // 5. Process Werewolf Vote/Action
-    // Assuming Werewolf action is unified or singular 'kill' action
-    const wolfAction = validActions.find(
+    // Werewolf actions can be multiple if revenge is active
+    const wolfActions = validActions.filter(
         a => roles.find(r => r.id === a.roleId)?.team === 'werewolf' && (a.actionType === 'kill' || !a.actionType)
     );
 
     let wolfInfectedSkip = false;
-    if (wolfAction && wolfAction.targetPlayerId) {
+    if (wolfActions.length > 0) {
         if (typeof currentNightNumber === 'number' && wolfInfectedRound === currentNightNumber) {
             wolfInfectedSkip = true;
             messages.push('🐺 Bầy Sói bị nhiễm bệnh và không thể cắn trong đêm nay.');
         } else {
-            const targetId = wolfAction.targetPlayerId;
-            const targetState = stateManager.getState(targetId);
+            wolfActions.forEach(action => {
+                if (action.targetPlayerId) {
+                    const targetId = action.targetPlayerId;
+                    const targetState = stateManager.getState(targetId);
 
-            // Wolves can't kill dead people
-            if (targetState && targetState.isAlive) {
-                // Check protection
-                if (!stateManager.getState(targetId)?.isProtected) {
-                    wolfTargets.push(targetId);
+                    // Wolves can't kill dead people
+                    if (targetState && targetState.isAlive) {
+                        // Check protection
+                        if (!stateManager.getState(targetId)?.isProtected) {
+                            wolfTargets.push(targetId);
+                        }
+                    }
                 }
-            }
+            });
         }
     }
 
-    const vampireAction = validActions.find(
+    const vampireActions = validActions.filter(
         a => roles.find(r => r.id === a.roleId)?.team === 'vampire' && (a.actionType === 'kill' || !a.actionType)
     );
 
-    if (vampireAction && vampireAction.targetPlayerId) {
-        const targetId = vampireAction.targetPlayerId;
-        const targetState = stateManager.getState(targetId);
-        if (targetState && targetState.isAlive && !stateManager.getState(targetId)?.isProtected) {
-            vampireTargets.push(targetId);
+    vampireActions.forEach(action => {
+        if (action.targetPlayerId) {
+            const targetId = action.targetPlayerId;
+            const targetState = stateManager.getState(targetId);
+            if (targetState && targetState.isAlive && !stateManager.getState(targetId)?.isProtected) {
+                vampireTargets.push(targetId);
+            }
         }
-    }
+    });
 
     // 6. Process Witch Actions
     // Witch must be looked up to verify ability usage

@@ -488,6 +488,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
         let grandmaUnlockedThisNight = false;
         let sickTriggeredThisNight = false;
+        let wolfRevengeTriggeredThisNight = false;
         let doppelgangerInheritedEvent: { actorId: string; targetId: string; inheritedRole: string } | null = null;
 
         for (const id of order) {
@@ -504,6 +505,10 @@ export const useGameStore = create<GameState>((set, get) => ({
             if (deadPlayer.roleId === 'nguoi_benh' && cause === 'werewolf') {
                 wolfInfectedRound = currentRound + 1;
                 sickTriggeredThisNight = true;
+            }
+
+            if (deadPlayer.roleId === 'soi_con') {
+                wolfRevengeTriggeredThisNight = true;
             }
 
             if (
@@ -623,6 +628,14 @@ export const useGameStore = create<GameState>((set, get) => ({
             });
         }
 
+        if (wolfRevengeTriggeredThisNight) {
+            get().addLogEntry({
+                type: 'GAME_EVENT',
+                message: '🐺 Bầy sói được giết 2 người đêm sau để trả thù vì Sói Con đã chết.',
+                metadata: { round: currentRound },
+            });
+        }
+
         if (doppelgangerInheritedEvent) {
             get().addLogEntry({
                 type: 'DOPPELGANGER_INHERITED',
@@ -694,6 +707,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
         let grandmaUnlocked = false;
         let sickTriggered = false;
+        let wolfRevengeTriggered = false;
         let doppelgangerInheritedEvent: { actorId: string; targetId: string; inheritedRole: string } | null = null;
 
         for (const id of order) {
@@ -710,6 +724,10 @@ export const useGameStore = create<GameState>((set, get) => ({
             if (deadPlayer.roleId === 'nguoi_benh' && internal === 'werewolf') {
                 wolfInfectedRound = currentRound + 1;
                 sickTriggered = true;
+            }
+
+            if (deadPlayer.roleId === 'soi_con') {
+                wolfRevengeTriggered = true;
             }
 
             if (
@@ -810,6 +828,14 @@ export const useGameStore = create<GameState>((set, get) => ({
                 type: 'SICK_PERSON_KILLED',
                 message: '🤒 Người Bệnh bị Sói cắn - bầy Sói sẽ bỏ lượt cắn ở đêm tiếp theo.',
                 metadata: { round: currentRound, wolfInfectedRound },
+            });
+        }
+
+        if (wolfRevengeTriggered) {
+            get().addLogEntry({
+                type: 'GAME_EVENT',
+                message: '🐺 Bầy sói được giết 2 người đêm sau để trả thù vì Sói Con đã chết.',
+                metadata: { round: currentRound },
             });
         }
 

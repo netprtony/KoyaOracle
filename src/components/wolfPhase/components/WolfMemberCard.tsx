@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
 import { WolfStatusBadge } from './WolfStatusBadge';
 import { Player } from '../../../types';
@@ -8,6 +8,7 @@ interface WolfMemberCardProps {
   player: Player;
   isAsleep: boolean;
   canBePunished?: boolean;
+  onEditRole?: () => void;
 }
 
 const getAbbr = (roleId: string | null) => {
@@ -34,76 +35,101 @@ const getRoleName = (roleId: string | null) => {
     }
 };
 
-export function WolfMemberCard({ player, isAsleep, canBePunished }: WolfMemberCardProps) {
+export function WolfMemberCard({ player, isAsleep, canBePunished, onEditRole }: WolfMemberCardProps) {
   const isWolfCub = player.roleId === 'soi_con';
   const abbr = getAbbr(player.roleId);
   const roleName = getRoleName(player.roleId);
 
-  const borderColor = isWolfCub ? '#242014' : WolfTheme.border.default;
-  const avatarBg = isWolfCub ? WolfTheme.bg.wolfCub : '#180808';
-  const avatarBorder = isWolfCub ? WolfTheme.border.wolfCub : WolfTheme.border.wolf;
-  const abbrColor = isWolfCub ? WolfTheme.text.wolfCub : '#C8A8A8';
+  const borderColor = isWolfCub ? '#443311' : '#2A2A3A';
+  const avatarBg = isWolfCub ? WolfTheme.bg.wolfCub : '#221111';
+  const avatarBorder = isWolfCub ? WolfTheme.border.wolfCub : '#E01E1E';
+  const abbrColor = isWolfCub ? WolfTheme.text.wolfCub : '#FF6666';
 
-  return (
-    <View style={[styles.card, { borderColor }, isAsleep && { opacity: 0.38 }]}>
+  const Content = (
+    <View style={[styles.card, { borderColor }, isAsleep && { opacity: 0.5 }]}>
       <View style={[styles.avatar, { backgroundColor: avatarBg, borderColor: avatarBorder }]}>
         <Text style={[styles.abbr, { color: abbrColor }]}>{abbr}</Text>
       </View>
       <View style={styles.info}>
-        <Text style={styles.name}>{player.name}</Text>
-        <Text style={styles.role}>{roleName}</Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.name}>{player.name}</Text>
+          {onEditRole && <Text style={styles.editIcon}>✎</Text>}
+        </View>
+        <Text style={styles.role}>{roleName.toUpperCase()}</Text>
       </View>
       <View style={styles.badges}>
         <WolfStatusBadge 
-          text={isAsleep ? 'NGỦ' : 'THỨC'} 
+          text={isAsleep ? 'ĐANG NGỦ' : 'ĐANG THỨC'} 
           type={isAsleep ? 'asleep' : 'awake'} 
         />
         {canBePunished && (
-          <WolfStatusBadge text="CÓ THỂ BỊ PHẠT" type="warning" />
+          <WolfStatusBadge text="CÓ THỂ PHẠT" type="warning" />
         )}
       </View>
     </View>
   );
+
+  if (onEditRole) {
+    return (
+      <TouchableOpacity onPress={onEditRole} activeOpacity={0.7}>
+        {Content}
+      </TouchableOpacity>
+    );
+  }
+
+  return Content;
 }
 
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 11,
-    paddingHorizontal: 12,
-    backgroundColor: WolfTheme.bg.card,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 6,
+    gap: 14,
+    padding: 16,
+    backgroundColor: '#161620',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 10,
+    elevation: 2,
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    borderWidth: 1,
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   abbr: {
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   info: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
   name: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: WolfTheme.text.primary,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  editIcon: {
+    fontSize: 14,
+    color: '#E01E1E',
   },
   role: {
-    fontSize: 11,
-    color: WolfTheme.text.muted,
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#888898',
+    letterSpacing: 1,
   },
   badges: {
     alignItems: 'flex-end',
-    gap: 3,
+    gap: 6,
   },
 });

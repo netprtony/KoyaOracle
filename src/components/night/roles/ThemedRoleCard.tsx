@@ -214,7 +214,7 @@ export function ThemedRoleCard({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.bg }]} pointerEvents="box-none">
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={styles.headerRow}>
          <Text style={[styles.cardCount, { color: theme.muted }]}>ROLE {currentRoleIndex + 1} / {totalRoles}</Text>
          <TouchableOpacity onPress={onShowRoleDesc} style={styles.infoBtn} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
@@ -251,7 +251,7 @@ export function ThemedRoleCard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    padding: 18, // Reduced from 24 for more space
     borderRadius: 32,
   },
   headerRow: {

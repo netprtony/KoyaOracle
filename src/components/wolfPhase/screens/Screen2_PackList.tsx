@@ -1,12 +1,17 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
 import { WolfMemberCard, WolfCubVoteTeaser, ConfirmButton } from '../components';
 import { useGameStore } from '../../../store/gameStore';
 import { useWolfPhaseUIStore } from '../../../store/wolfPhaseUIStore';
 
-export function Screen2_PackList() {
-  const { session } = useGameStore();
+interface Screen2_PackListProps {
+  isPhysicalCardMode?: boolean;
+  onOpenRoleAssign?: (roleId: string) => void;
+}
+
+export function Screen2_PackList({ isPhysicalCardMode, onOpenRoleAssign }: Screen2_PackListProps) {
+  const { session, availableScenarios } = useGameStore();
   const setStep = useWolfPhaseUIStore(s => s.setStep);
 
   if (!session) return null;
@@ -27,54 +32,94 @@ export function Screen2_PackList() {
     .map(w => w.id);
 
   const wolfCub = wolves.find(w => w.roleId === 'soi_con');
-  const wolfCubRevengeActive = session.wolfInfectedRound === session.currentPhase.number; // Check if infected? No, check if revenge active.
-  // Wait, the plan says: wolfCubRevengeActive ? <Screen5_Revenge /> : <Screen3_TargetSelect />
-  // I need to find where revenge active is stored. In session?
-  // Looking at assets/roles.json, Sói Con passive says: "werewolvesKillTwoNextNight"
-  // GameStore doesn't seem to have a specific 'wolfCubRevengeActive' boolean yet.
-  // I might need to derive it or check if it's already implemented in engine.
-
-  // For now, I'll assume we can check if a wolf cub died last night.
-  // But let's look at useGameStore or NightResolver logic.
   
+  // Find which wolf roles SHOULD be in this game but aren't assigned yet (for Physical Mode)
+  const scenario = availableScenarios.find(s => s.id === session.scenarioId);
+  const wolfRoleIdsInScenario = scenario?.roles
+    .filter(r => r.quantity > 0 && [
+      'soi', 'soi_con', 'soi_don_doc', 'nanh_soi', 'soi_an_chay', 'soi_trum'
+    ].includes(r.roleId))
+    .map(r => r.roleId) || [];
+
+  const unassignedWolfRoles = wolfRoleIdsInScenario.filter(roleId => 
+    !wolves.some(w => w.roleId === roleId)
+  );
+
   const handleOpenVote = () => {
       setStep(3); // Screen 4 is index 3
   };
 
   const handleNext = () => {
-      // Logic for S3 vs S5
-      // If revenge active, we'll go to step 2 but render Screen 5 (index 4)
-      // Actually, Navigator will handle it.
       setStep(2);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerLabel}>THÀNH VIÊN BẦY</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerLabel}>THÀNH VIÊN BẦY ĐANG THỨC</Text>
+        <Text style={styles.title}>Danh sách bầy Sói</Text>
+      </View>
       
-      <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.list} 
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={true}
+        indicatorStyle="white"
+      >
+        {wolves.length === 0 && !isPhysicalCardMode && (
+          <Text style={styles.emptyText}>Không có Sói nào còn sống.</Text>
+        )}
+
         {wolves.map(wolf => (
           <WolfMemberCard 
             key={wolf.id} 
             player={wolf} 
             isAsleep={asleepWolfIds.includes(wolf.id)} 
             canBePunished={wolf.roleId === 'soi_con'}
+            onEditRole={isPhysicalCardMode ? () => onOpenRoleAssign?.(wolf.roleId!) : undefined}
           />
         ))}
 
-        {asleepWolfIds.length > 0 && (
-          <Text style={styles.footerNote}>Nanh Sói thức dậy khi là sói cuối cùng</Text>
+        {isPhysicalCardMode && unassignedWolfRoles.length > 0 && (
+          <View style={styles.assignSection}>
+            <Text style={styles.assignTitle}>CHƯA GÁN NGƯỜI CHƠI:</Text>
+            {unassignedWolfRoles.map(roleId => (
+              <TouchableOpacity 
+                key={roleId} 
+                style={styles.assignBtn}
+                onPress={() => onOpenRoleAssign?.(roleId)}
+              >
+                <Text style={styles.assignBtnText}>+ GÁN {roleId.replace('_', ' ').toUpperCase()}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
 
-        <View style={styles.divider} />
+        {asleepWolfIds.length > 0 && (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoText}>💡 Nanh Sói chỉ thức dậy khi là sói cuối cùng còn sống.</Text>
+          </View>
+        )}
 
         {wolfCub && (
-          <WolfCubVoteTeaser onPress={handleOpenVote} />
+          <View style={styles.punishSection}>
+            <View style={styles.divider} />
+            <Text style={styles.punishTitle}>PHẠT SÓI CON?</Text>
+            <WolfCubVoteTeaser onPress={handleOpenVote} />
+          </View>
         )}
       </ScrollView>
 
       <View style={styles.footer}>
-        <ConfirmButton title="Chọn mục tiêu ›" onPress={handleNext} />
+        <ConfirmButton 
+          title="TIẾP THEO: CHỌN MỤC TIÊU ›" 
+          onPress={handleNext} 
+          disabled={wolves.length === 0}
+        />
+        
+        <TouchableOpacity style={styles.backBtn} onPress={() => setStep(0)}>
+          <Text style={styles.backBtnText}>‹ QUAY LẠI MÀN HÌNH CHÀO</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -84,28 +129,106 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    marginBottom: 16,
+  },
   headerLabel: {
-    fontSize: 11,
-    color: WolfTheme.text.muted,
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#E01E1E',
     letterSpacing: 2,
-    marginBottom: 12,
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   list: {
     flex: 1,
   },
-  footerNote: {
-    fontSize: 11,
-    color: '#404050',
-    marginTop: 3,
+  listContent: {
+    paddingBottom: 30,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#585868',
+    textAlign: 'center',
+    marginTop: 40,
+    fontStyle: 'italic',
+  },
+  assignSection: {
+    marginTop: 10,
+    gap: 10,
+  },
+  assignTitle: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#585868',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  assignBtn: {
+    backgroundColor: '#1A1A24',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E01E1E',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+  },
+  assignBtnText: {
+    color: '#E01E1E',
+    fontSize: 14,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  infoBox: {
+    backgroundColor: '#1A1A24',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 20,
+    borderLeftWidth: 3,
+    borderLeftColor: '#404050',
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#A0A0B0',
+    fontStyle: 'italic',
+  },
+  punishSection: {
+    marginTop: 20,
+  },
+  punishTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FFCC00',
+    letterSpacing: 2,
     marginBottom: 10,
-    marginLeft: 2,
+    textAlign: 'center',
   },
   divider: {
-    borderTopWidth: 1,
-    borderTopColor: '#181820',
-    marginVertical: 10,
+    borderTopWidth: 1.5,
+    borderTopColor: '#242432',
+    marginVertical: 20,
+    width: '60%',
+    alignSelf: 'center',
   },
   footer: {
-    marginTop: 6,
+    paddingTop: 16,
+    borderTopWidth: 1.5,
+    borderTopColor: '#242432',
+    gap: 8,
+  },
+  backBtn: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backBtnText: {
+    color: '#585868',
+    fontSize: 13,
+    fontWeight: 'bold',
+    letterSpacing: 1,
   },
 });
