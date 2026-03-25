@@ -236,6 +236,7 @@ export function ThemedRoleCard({
         keyboardShouldPersistTaps="always"
         scrollEventThrottle={16}
         bounces={true}
+        nestedScrollEnabled
       >
         {renderHistoricalInfo()}
         

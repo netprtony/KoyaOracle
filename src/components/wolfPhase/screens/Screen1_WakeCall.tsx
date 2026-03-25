@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
 import { WolfAvatarRow, ConfirmButton } from '../components';
 import { useGameStore } from '../../../store/gameStore';
@@ -35,43 +35,51 @@ export function Screen1_WakeCall({ onBack, onSkip }: Screen1Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.upperLabel}>
-          ĐÊM {session.currentPhase.number} &nbsp;·&nbsp; GIAI ĐOẠN ĐÊM
-        </Text>
-        
-        <View style={styles.wolfCircle}>
-          <Text style={styles.wolfCircleText}>SOI</Text>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        indicatorStyle="white"
+        nestedScrollEnabled
+      >
+        <View style={styles.content}>
+          <Text style={styles.upperLabel}>
+            ĐÊM {session.currentPhase.number} &nbsp;·&nbsp; GIAI ĐOẠN ĐÊM
+          </Text>
+          
+          <View style={styles.wolfCircle}>
+            <Text style={styles.wolfCircleText}>SOI</Text>
+          </View>
+
+          <Text style={styles.title}>BẦY SÓI</Text>
+          <Text style={styles.subtitle}>THỨC DẬY</Text>
+          
+          <View style={styles.divider} />
+          
+          <Text style={styles.infoText}>
+            {activeWolvesCount} đang thức &nbsp;·&nbsp; {asleepWolfIds.length > 0 ? 'Nanh Sói ngủ đêm nay' : 'Cả bầy đều thức'}
+          </Text>
+
+          <WolfAvatarRow wolves={wolves} asleepWolfIds={asleepWolfIds} />
         </View>
 
-        <Text style={styles.title}>BẦY SÓI</Text>
-        <Text style={styles.subtitle}>THỨC DẬY</Text>
-        
-        <View style={styles.divider} />
-        
-        <Text style={styles.infoText}>
-          {activeWolvesCount} đang thức &nbsp;·&nbsp; {asleepWolfIds.length > 0 ? 'Nanh Sói ngủ đêm nay' : 'Cả bầy đều thức'}
-        </Text>
-
-        <WolfAvatarRow wolves={wolves} asleepWolfIds={asleepWolfIds} />
-      </View>
-
-      <View style={styles.footer}>
-        <ConfirmButton title="Tiếp theo ›" onPress={() => setStep(1)} />
-        
-        <View style={styles.secondaryActions}>
-          {onBack && (
-            <TouchableOpacity style={styles.actionBtnSmall} onPress={onBack}>
-              <Text style={styles.actionBtnText}>‹ Quay lại</Text>
-            </TouchableOpacity>
-          )}
-          {onSkip && (
-            <TouchableOpacity style={styles.actionBtnSmall} onPress={onSkip}>
-              <Text style={styles.actionBtnText}>Bỏ qua đêm nay</Text>
-            </TouchableOpacity>
-          )}
+        <View style={styles.footer}>
+          <ConfirmButton title="Tiếp theo ›" onPress={() => setStep(1)} />
+          
+          <View style={styles.secondaryActions}>
+            {onBack && (
+              <TouchableOpacity style={styles.actionBtnSmall} onPress={onBack}>
+                <Text style={styles.actionBtnText}>‹ Quay lại</Text>
+              </TouchableOpacity>
+            )}
+            {onSkip && (
+              <TouchableOpacity style={styles.actionBtnSmall} onPress={onSkip}>
+                <Text style={styles.actionBtnText}>Bỏ qua đêm nay</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -79,6 +87,13 @@ export function Screen1_WakeCall({ onBack, onSkip }: Screen1Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 16,
   },
   content: {
     alignItems: 'center',
@@ -131,9 +146,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   footer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    marginTop: 14,
+    marginTop: 'auto',
+    paddingTop: 14,
     gap: 12,
   },
   secondaryActions: {

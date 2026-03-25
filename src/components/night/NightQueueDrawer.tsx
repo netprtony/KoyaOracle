@@ -49,7 +49,7 @@ export function NightQueueDrawer(props: NightQueueDrawerProps = {}) {
       <Pressable style={styles.backdrop} onPress={closeDrawer}>
         <Pressable style={styles.panel} onPress={() => undefined}>
           <Text style={styles.title}>DANH SACH DEM NAY</Text>
-          <ScrollView contentContainerStyle={styles.list}>
+          <ScrollView contentContainerStyle={styles.list} nestedScrollEnabled keyboardShouldPersistTaps="handled">
             {queue.map((item, index) => {
               const action = actionMap[getNightActionKey(item.roleId, item.playerId)] || actionMap[`${item.roleId}:${item.roleId}`];
               const status = !item.isActive

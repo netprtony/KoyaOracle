@@ -56,7 +56,7 @@ export function WolfPhaseNavigator({
   // Check for revenge night log entry from previous night
   const isRevengeNight = session.matchLog.some(l => 
     l.type === 'GAME_EVENT' && 
-    l.message.includes('Bầy sói được giết 2 người') && 
+    (l.message.includes('Bầy sói được giết 2 người') || l.message.includes('Sói Con đã chết')) && 
     l.metadata?.round === session.currentPhase.number - 1
   );
 
@@ -98,12 +98,7 @@ export function WolfPhaseNavigator({
         step={step === 2 && isRevengeNight ? 4 : (step > 3 ? 0 : step)} 
         nightNumber={session.currentPhase.number} 
       />
-      <Animated.View 
-        key={step} 
-        entering={FadeIn.duration(200)} 
-        exiting={FadeOut.duration(200)}
-        style={styles.screenContainer}
-      >
+      <Animated.View key={step} entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)} style={styles.screenContainer}>
         {renderScreen()}
       </Animated.View>
     </View>

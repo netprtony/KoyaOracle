@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
 import { TargetGrid, TargetCell, ConfirmButton, RevengeBanner } from '../components';
 import { useGameStore } from '../../../store/gameStore';
@@ -40,29 +40,39 @@ export function Screen5_Revenge({ onConfirm }: Screen5_RevengeProps) {
         </View>
       </View>
       
-      <ScrollView 
-        style={styles.list} 
-        contentContainerStyle={{ paddingBottom: 20 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <TargetGrid>
-          {eligibleTargets.map((player, index) => (
-            <TargetCell
-              key={player.id}
-              index={index + 1}
-              name={player.name || `Người chơi ${index + 1}`}
-              selected={revengeTargets.includes(player.id)}
-              revengeMode={true}
-              onPress={() => toggleRevTarget(player.id)}
-            />
-          ))}
-        </TargetGrid>
-        {eligibleTargets.length === 0 && (
-          <Text style={{ color: '#484858', textAlign: 'center', marginTop: 20 }}>
-            Không có mục tiêu hợp lệ
-          </Text>
-        )}
-      </ScrollView>
+      <View style={styles.listWrapper}>
+        <FlatList 
+          style={styles.list}
+          contentContainerStyle={{ paddingBottom: 20, flexGrow: 1, paddingHorizontal: 8 }}
+          data={eligibleTargets.length > 0 ? eligibleTargets : ([] as typeof eligibleTargets)}
+          numColumns={2}
+          keyExtractor={item => item.id}
+          scrollEnabled={true}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+          bounces={true}
+          overScrollMode="auto"
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item, index }) => {
+            if (!item.id) {
+              return <Text style={{ color: '#484858', textAlign: 'center', marginTop: 20, width: '100%' }}>Không có mục tiêu hợp lệ</Text>;
+            }
+            return (
+              <View style={styles.gridItemWrapper}>
+                <TargetCell
+                  index={eligibleTargets.indexOf(item) + 1}
+                  name={item.name || `Người chơi ${eligibleTargets.indexOf(item) + 1}`}
+                  selected={revengeTargets.includes(item.id)}
+                  revengeMode={true}
+                  onPress={() => toggleRevTarget(item.id)}
+                />
+              </View>
+            );
+          }}
+          ListEmptyComponent={<Text style={{ color: '#484858', textAlign: 'center', marginTop: 20, width: '100%' }}>Không có mục tiêu hợp lệ</Text>}
+        />
+      </View>
 
       <View style={styles.footer}>
         <ConfirmButton 
@@ -108,8 +118,15 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: WolfTheme.text.primary,
   },
+  listWrapper: {
+    flex: 1,
+  },
   list: {
     flex: 1,
+  },
+  gridItemWrapper: {
+    width: '50%',
+    padding: 4,
   },
   footer: {
     marginTop: 10,

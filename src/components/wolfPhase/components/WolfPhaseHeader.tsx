@@ -21,7 +21,7 @@ export function WolfPhaseHeader({ step, nightNumber }: WolfPhaseHeaderProps) {
       <View style={styles.left}>
         <Text style={styles.nightText}>ĐÊM {nightNumber}</Text>
         <View style={styles.stepDots}>
-          {[0, 1, 2, 4].map((s) => (
+          {[0, 1, 2, 3, 4].map((s) => (
             <View 
               key={s} 
               style={[

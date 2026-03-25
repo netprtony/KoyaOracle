@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Modal } from 'react-native';
-import { ScrollView } from 'react-native-gesture-handler';
+import { View, Text, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { useGameStore } from '../../store/gameStore';
 import { gameMasterStyles as styles } from './gameMasterStyles';
 import { getSkillDisplay } from './constants';
@@ -90,7 +89,11 @@ export function GameMasterModals(props: GameMasterState) {
                 <Text style={styles.closeBtn}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
+            <ScrollView
+              style={[styles.modalBody, styles.modalBodyScroll]}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               <Text style={styles.cardDesc}>{currentRole?.description}</Text>
             </ScrollView>
           </View>
@@ -122,7 +125,11 @@ export function GameMasterModals(props: GameMasterState) {
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.modalBody}>
+            <ScrollView
+              style={[styles.modalBody, styles.modalBodyScroll]}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               {currentRole?.id === 'phu_thuy' && activeActionType === 'heal' ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
                    {getWolfVictim() ? (
@@ -482,7 +489,11 @@ export function GameMasterModals(props: GameMasterState) {
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.modalBody}>
+            <ScrollView
+              style={[styles.modalBody, styles.modalBodyScroll]}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               <Text style={styles.roleListLabel}>Danh sách người chơi:</Text>
               {session.players.map(player => {
                 const isAssignedToOther = player.roleId && player.roleId !== currentRole?.id;
@@ -551,7 +562,11 @@ export function GameMasterModals(props: GameMasterState) {
                 <Text style={styles.closeBtn}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
+            <ScrollView
+              style={[styles.modalBody, styles.modalBodyScroll]}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               {session.players.map(player => {
                  const role = availableRoles.find(r => r.id === player.roleId);
                  return (

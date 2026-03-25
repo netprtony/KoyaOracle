@@ -7,7 +7,7 @@ interface WolfPhaseUIStore {
   votes:           Record<string, boolean>;
 
   setStep:         (n: number) => void;
-  selectTarget:    (id: string) => void;
+  selectTarget:    (id: string | null) => void;
   toggleRevTarget: (id: string) => void;
   toggleVote:      (playerId: string) => void;
   reset:           () => void;

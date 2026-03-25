@@ -639,6 +639,9 @@ export const gameMasterStyles = StyleSheet.create({
     modalBody: {
         padding: 20,
     },
+    modalBodyScroll: {
+        flex: 1,
+    },
     modalFooter: {
         padding: 20,
         borderTopWidth: 1,
@@ -954,5 +957,16 @@ export const gameMasterStyles = StyleSheet.create({
         marginTop: 15,
         fontWeight: '600',
         opacity: 0.8
+    },
+    wolfNavigatorContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: '#0B0B10',
+        zIndex: 1000,
+        padding: 10,
+        borderRadius: 20,
     }
 });

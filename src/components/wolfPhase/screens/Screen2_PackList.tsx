@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
 import { WolfMemberCard, WolfCubVoteTeaser, ConfirmButton } from '../components';
 import { useGameStore } from '../../../store/gameStore';
@@ -16,11 +16,13 @@ export function Screen2_PackList({ isPhysicalCardMode, onOpenRoleAssign }: Scree
 
   if (!session) return null;
 
-  const wolves = session.players.filter(p => 
+  type ListItem = ({ type: 'wolf', data: typeof wolves[0] } | { type: 'assign' } | { type: 'info' } | { type: 'punish' });
+
+  const wolves = session.players.filter(p =>
     p.isAlive && (
-      p.roleId === 'soi' || 
-      p.roleId === 'soi_con' || 
-      p.roleId === 'soi_don_doc' || 
+      p.roleId === 'soi' ||
+      p.roleId === 'soi_con' ||
+      p.roleId === 'soi_don_doc' ||
       p.roleId === 'nanh_soi' ||
       p.roleId === 'soi_an_chay' ||
       p.roleId === 'soi_trum'
@@ -32,8 +34,7 @@ export function Screen2_PackList({ isPhysicalCardMode, onOpenRoleAssign }: Scree
     .map(w => w.id);
 
   const wolfCub = wolves.find(w => w.roleId === 'soi_con');
-  
-  // Find which wolf roles SHOULD be in this game but aren't assigned yet (for Physical Mode)
+
   const scenario = availableScenarios.find(s => s.id === session.scenarioId);
   const wolfRoleIdsInScenario = scenario?.roles
     .filter(r => r.quantity > 0 && [
@@ -41,16 +42,16 @@ export function Screen2_PackList({ isPhysicalCardMode, onOpenRoleAssign }: Scree
     ].includes(r.roleId))
     .map(r => r.roleId) || [];
 
-  const unassignedWolfRoles = wolfRoleIdsInScenario.filter(roleId => 
+  const unassignedWolfRoles = wolfRoleIdsInScenario.filter(roleId =>
     !wolves.some(w => w.roleId === roleId)
   );
 
   const handleOpenVote = () => {
-      setStep(3); // Screen 4 is index 3
+    setStep(3);
   };
 
   const handleNext = () => {
-      setStep(2);
+    setStep(2);
   };
 
   return (
@@ -59,64 +60,85 @@ export function Screen2_PackList({ isPhysicalCardMode, onOpenRoleAssign }: Scree
         <Text style={styles.headerLabel}>THÀNH VIÊN BẦY ĐANG THỨC</Text>
         <Text style={styles.title}>Danh sách bầy Sói</Text>
       </View>
-      
-      <ScrollView 
-        style={styles.list} 
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={true}
-        indicatorStyle="white"
-      >
-        {wolves.length === 0 && !isPhysicalCardMode && (
-          <Text style={styles.emptyText}>Không có Sói nào còn sống.</Text>
-        )}
 
-        {wolves.map(wolf => (
-          <WolfMemberCard 
-            key={wolf.id} 
-            player={wolf} 
-            isAsleep={asleepWolfIds.includes(wolf.id)} 
-            canBePunished={wolf.roleId === 'soi_con'}
-            onEditRole={isPhysicalCardMode ? () => onOpenRoleAssign?.(wolf.roleId!) : undefined}
-          />
-        ))}
+      <View style={styles.listWrapper}>
+        <FlatList
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          data={[
+            ...wolves.map(w => ({ type: 'wolf' as const, data: w })),
+            ...(isPhysicalCardMode && unassignedWolfRoles.length > 0 ? [{ type: 'assign' as const }] : []),
+            ...(asleepWolfIds.length > 0 ? [{ type: 'info' as const }] : []),
+            ...(wolfCub ? [{ type: 'punish' as const }] : [])
+          ]}
+          keyExtractor={(item, idx) => {
+            if (item.type === 'wolf') return item.data.id;
+            return item.type + idx;
+          }}
+          scrollEnabled={true}
+          showsVerticalScrollIndicator={true}
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+          bounces={true}
+          overScrollMode="auto"
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => {
+            if (item.type === 'wolf') {
+              const wolf = item.data;
+              return (
+                <WolfMemberCard
+                  key={wolf.id}
+                  player={wolf}
+                  isAsleep={asleepWolfIds.includes(wolf.id)}
+                  canBePunished={wolf.roleId === 'soi_con'}
+                  onEditRole={isPhysicalCardMode ? () => onOpenRoleAssign?.(wolf.roleId!) : undefined}
+                />
+              );
+            }
 
-        {isPhysicalCardMode && unassignedWolfRoles.length > 0 && (
-          <View style={styles.assignSection}>
-            <Text style={styles.assignTitle}>CHƯA GÁN NGƯỜI CHƠI:</Text>
-            {unassignedWolfRoles.map(roleId => (
-              <TouchableOpacity 
-                key={roleId} 
-                style={styles.assignBtn}
-                onPress={() => onOpenRoleAssign?.(roleId)}
-              >
-                <Text style={styles.assignBtnText}>+ GÁN {roleId.replace('_', ' ').toUpperCase()}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+            if (item.type === 'assign') {
+              return (
+                <View style={styles.assignSection}>
+                  <Text style={styles.assignTitle}>CHƯA GÁN NGƯỜI CHƠI:</Text>
+                  {unassignedWolfRoles.map(roleId => (
+                    <TouchableOpacity
+                      key={roleId}
+                      style={styles.assignBtn}
+                      onPress={() => onOpenRoleAssign?.(roleId)}
+                    >
+                      <Text style={styles.assignBtnText}>+ GÁN {roleId.replace('_', ' ').toUpperCase()}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            }
 
-        {asleepWolfIds.length > 0 && (
-          <View style={styles.infoBox}>
-            <Text style={styles.infoText}>💡 Nanh Sói chỉ thức dậy khi là sói cuối cùng còn sống.</Text>
-          </View>
-        )}
+            if (item.type === 'info') {
+              return (
+                <View style={styles.infoBox}>
+                  <Text style={styles.infoText}>💡 Nanh Sói chỉ thức dậy khi là sói cuối cùng còn sống.</Text>
+                </View>
+              );
+            }
 
-        {wolfCub && (
-          <View style={styles.punishSection}>
-            <View style={styles.divider} />
-            <Text style={styles.punishTitle}>PHẠT SÓI CON?</Text>
-            <WolfCubVoteTeaser onPress={handleOpenVote} />
-          </View>
-        )}
-      </ScrollView>
+            return (
+              <View style={styles.punishSection}>
+                <View style={styles.divider} />
+                <Text style={styles.punishTitle}>PHẠT SÓI CON?</Text>
+                <WolfCubVoteTeaser onPress={handleOpenVote} />
+              </View>
+            );
+          }}
+        />
+      </View>
 
       <View style={styles.footer}>
-        <ConfirmButton 
-          title="TIẾP THEO: CHỌN MỤC TIÊU ›" 
-          onPress={handleNext} 
+        <ConfirmButton
+          title="TIẾP THEO: CHỌN MỤC TIÊU ›"
+          onPress={handleNext}
           disabled={wolves.length === 0}
         />
-        
+
         <TouchableOpacity style={styles.backBtn} onPress={() => setStep(0)}>
           <Text style={styles.backBtnText}>‹ QUAY LẠI MÀN HÌNH CHÀO</Text>
         </TouchableOpacity>
@@ -143,6 +165,10 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  listWrapper: {
+    flex: 1,
+    minHeight: 0,
   },
   list: {
     flex: 1,

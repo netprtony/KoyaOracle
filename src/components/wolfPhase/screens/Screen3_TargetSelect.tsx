@@ -1,12 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { WolfTheme } from '../../../styles/wolfPhaseTheme';
-import { TargetGrid, TargetCell, ConfirmButton } from '../components';
+import { ConfirmButton, TargetCell } from '../components';
 import { useGameStore } from '../../../store/gameStore';
 import { useWolfPhaseUIStore } from '../../../store/wolfPhaseUIStore';
 
 interface Screen3_TargetSelectProps {
-    onConfirm: (targetId: string) => void;
+  onConfirm: (targetId: string) => void;
 }
 
 export function Screen3_TargetSelect({ onConfirm }: Screen3_TargetSelectProps) {
@@ -15,68 +15,70 @@ export function Screen3_TargetSelect({ onConfirm }: Screen3_TargetSelectProps) {
 
   if (!session) return null;
 
-  // Filter eligible targets (alive, not on wolf team)
-  const eligibleTargets = session.players.filter(p => 
-    p.isAlive && 
-    p.roleId !== 'soi' && 
-    p.roleId !== 'soi_con' && 
-    p.roleId !== 'soi_don_doc' && 
+  const eligibleTargets = session.players.filter(p =>
+    p.isAlive &&
+    p.roleId !== 'soi' &&
+    p.roleId !== 'soi_con' &&
+    p.roleId !== 'soi_don_doc' &&
     p.roleId !== 'nanh_soi' &&
     p.roleId !== 'soi_an_chay' &&
     p.roleId !== 'soi_trum' &&
-    !p.isTraitor // Traitor is on wolf team but hidden
+    !p.isTraitor
   );
 
-  const selectedPlayer = eligibleTargets.find(p => p.id === selectedTarget);
+  const handleSelect = (playerId: string) => {
+    if (selectedTarget === playerId) {
+      selectTarget(null);
+    } else {
+      selectTarget(playerId);
+    }
+  };
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerLabel}>BÀN LUẬN & CHỌN MỒI</Text>
         <Text style={styles.title}>Đêm nay giết ai?</Text>
+        <Text style={styles.subtitle}>Chạm để chọn mục tiêu · {eligibleTargets.length} người hợp lệ</Text>
       </View>
-      
-      <ScrollView 
-        style={styles.list} 
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={true}
-        indicatorStyle="white"
-      >
-        <TargetGrid>
-          {eligibleTargets.map((player, index) => (
-            <TargetCell
-              key={player.id}
-              index={index + 1}
-              name={player.name || `Người chơi ${index + 1}`}
-              selected={selectedTarget === player.id}
-              revengeMode={false}
-              onPress={() => selectTarget(player.id)}
-            />
-          ))}
-        </TargetGrid>
-        {eligibleTargets.length === 0 && (
-          <Text style={{ color: '#888898', textAlign: 'center', marginTop: 40, fontSize: 16 }}>
-            Không có mục tiêu nào hợp lệ
-          </Text>
-        )}
-      </ScrollView>
 
+      {/* Target Grid */}
+      <View style={styles.listWrapper}>
+        <FlatList
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          data={eligibleTargets}
+          numColumns={2}
+          keyExtractor={item => item.id}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => {
+            // Lấy số ghế thực tế (1-based index trong session.players)
+            const seatNumber = session.players.findIndex(p => p.id === item.id) + 1;
+            return (
+              <TargetCell
+                index={seatNumber}
+                name={item.name}
+                selected={selectedTarget === item.id}
+                revengeMode={false}
+                onPress={() => handleSelect(item.id)}
+              />
+            );
+          }}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>Không tìm thấy mục tiêu hợp lệ</Text>
+          }
+        />
+      </View>
+
+      {/* Footer */}
       <View style={styles.footer}>
-        <View style={styles.statusBox}>
-           <Text style={[styles.statusLabel, selectedPlayer && { color: WolfTheme.accent.wolf }]}>
-             {selectedPlayer ? 'ĐÃ CHỌN MỤC TIÊU:' : 'CHƯA CHỌN MỤC TIÊU'}
-           </Text>
-           {selectedPlayer && (
-             <Text style={styles.targetNameDisplay}>{selectedPlayer.name}</Text>
-           )}
-        </View>
-
-        <ConfirmButton 
-          title="Xác nhận" 
-          onPress={() => selectedTarget && onConfirm(selectedTarget)} 
+        <ConfirmButton
+          title="Xác nhận mục tiêu"
+          onPress={() => selectedTarget && onConfirm(selectedTarget)}
           disabled={!selectedTarget}
         />
-        
+
         <TouchableOpacity style={styles.backBtn} onPress={() => setStep(1)}>
           <Text style={styles.backBtnText}>‹ QUAY LẠI DANH SÁCH BẦY</Text>
         </TouchableOpacity>
@@ -93,7 +95,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerLabel: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: 'bold',
     color: '#E01E1E',
     letterSpacing: 2.5,
@@ -103,41 +105,39 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: WolfTheme.text.muted,
+    letterSpacing: 0.5,
+  },
+
+  // List
+  listWrapper: {
+    flex: 1,
+    marginHorizontal: -8, // Compensate for item padding
   },
   list: {
     flex: 1,
-    marginHorizontal: -8, // compensate for grid padding
   },
   listContent: {
-    paddingHorizontal: 8,
-    paddingBottom: 40,
+    paddingBottom: 20,
+    paddingHorizontal: 4,
   },
+  emptyText: {
+    color: '#484858',
+    textAlign: 'center',
+    marginTop: 40,
+    fontStyle: 'italic',
+  },
+
+  // Footer
   footer: {
     paddingTop: 16,
     borderTopWidth: 1.5,
     borderTopColor: '#242432',
-    gap: 12,
-  },
-  statusBox: {
-    backgroundColor: '#161620',
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#242432',
-  },
-  statusLabel: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#585868',
-    letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  targetNameDisplay: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
+    gap: 8,
   },
   backBtn: {
     paddingVertical: 14,

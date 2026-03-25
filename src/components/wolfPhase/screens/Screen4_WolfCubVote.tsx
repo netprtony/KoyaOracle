@@ -51,18 +51,26 @@ export function Screen4_WolfCubVote({ onConfirm }: Screen4_WolfCubVoteProps) {
       <Text style={styles.title}>Trừng phạt Sói Con</Text>
       <Text style={styles.subtitle}>Cần toàn bộ bầy đồng ý. Sói Con đã tự đồng ý.</Text>
       
-      <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-        {activeWolves.map(wolf => (
-          <VoteRow
-            key={wolf.id}
-            name={wolf.name}
-            roleName={getRoleName(wolf.roleId)}
-            voted={wolf.roleId === 'soi_con' ? true : !!votes[wolf.id]}
-            isWolfCub={wolf.roleId === 'soi_con'}
-            onToggle={() => toggleVote(wolf.id)}
-          />
-        ))}
-      </ScrollView>
+      <View style={styles.listWrapper}>
+        <ScrollView 
+          style={styles.list} 
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+        >
+          {activeWolves.map(wolf => (
+            <VoteRow
+              key={wolf.id}
+              name={wolf.name}
+              roleName={getRoleName(wolf.roleId)}
+              voted={wolf.roleId === 'soi_con' ? true : !!votes[wolf.id]}
+              isWolfCub={wolf.roleId === 'soi_con'}
+              onToggle={() => toggleVote(wolf.id)}
+            />
+          ))}
+        </ScrollView>
+      </View>
 
       <View style={styles.footer}>
         <VoteCounter current={currentVotesCount} total={activeWolves.length} />
@@ -107,6 +115,13 @@ const styles = StyleSheet.create({
   },
   list: {
     flex: 1,
+  },
+  listWrapper: {
+    flex: 1,
+  },
+  listContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
   },
   footer: {
     marginTop: 10,

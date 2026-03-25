@@ -1,7 +1,7 @@
 import { Role, Scenario, NightOrderDefinition, GameSession, Player } from '../types';
 import { NightRoleQueueItem, NightActionState } from '../types/nightPhase.types';
 
-export const WOLF_PACK_ROLES = new Set(['soi', 'soi_con', 'soi_don_doc', 'soi_trum', 'soi_an_chay']);
+export const WOLF_PACK_ROLES = new Set(['soi', 'soi_con', 'soi_don_doc', 'soi_trum', 'soi_an_chay', 'nanh_soi']);
 export const FANG_ROLE_ID = 'nanh_soi';
 
 function getQueuePriority(roleId: string, index: number): number {

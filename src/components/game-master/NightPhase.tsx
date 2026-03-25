@@ -415,7 +415,7 @@ export function NightPhase({
         </View>
 
         {isWolfRole && (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0B0B10', zIndex: 10, padding: 10, borderRadius: 20 }]}>
+          <View style={styles.wolfNavigatorContainer}>
              <WolfPhaseNavigator 
                onComplete={handleWolfPhaseComplete} 
                onBack={handlePreviousRoleUnified}
